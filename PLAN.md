@@ -18,7 +18,7 @@ shared test suite that proves every implementation can read what every other one
 | Blob mode | Whole input (binary or text) in 64 KiB authenticated chunks, base64, wrapped at 76 columns |
 | SSH mode | Key is derived from a **deterministic signature made by `ssh-agent`** (Ed25519 or RSA). The private key never leaves the agent; you type its passphrase once per login as usual |
 | Unified delivery | Each language ships a library **and** a CLI `bin/ssenc` with identical commands, flags and exit codes. Tests drive the CLIs |
-| Tests | Shared known-answer vectors + full 3×3 encrypt/decrypt matrix + 3×3×3 rekey matrix |
+| Tests | Encrypt everywhere (Rust, Bash, Node on `.ts`, Node on `.js`, browser via Playwright), save to files, then decrypt everything with everything; results published as a report on GitHub Pages |
 
 All of the building blocks were checked on this machine before writing the plan
 (see [section 11](#11-what-was-verified-already)).
@@ -37,10 +37,10 @@ All of the building blocks were checked on this machine before writing the plan
 | Password mode | Argon2id key slot |
 | SSH-key mode, unlocked once per OS session | ssh-agent signature key slot |
 | mac, Linux, ideally Windows | Unix socket on mac/Linux, `\\.\pipe\openssh-ssh-agent` on Windows |
-| TypeScript as a single file | `typescript/dist/ssenc.ts`, zero runtime dependencies |
+| TypeScript as a single file, ESM, for Node.js and for the browser, each also transpiled | `typescript/dist/ssenc.node.ts` + `ssenc.browser.ts`, with `ssenc.node.js` + `ssenc.browser.js` next to them; zero runtime dependencies |
 | Same interface in all languages | Same four operations, same option names, same CLI |
 | Per-language directories with tests | `typescript/`, `rust/`, `bash/`, plus shared `tests/` |
-| Cross-implementation tests | `tests/run.sh` matrix |
+| Cross-implementation tests, incl. browser, with a published summary | 5×5 producer × consumer matrix, report on GitHub Pages (section 8) |
 | `compile.sh`, `install.sh`, `envverify.sh` per language | Present in every language directory and at the root |
 
 ---
@@ -225,7 +225,11 @@ changes.
 
 ```
 Key  = { type: "password", password }
-     | { type: "ssh", publicKey | fingerprint, agentSocket? }
+     | { type: "ssh", publicKey | fingerprint, agentSocket?, signer? }
+
+signer = (publicKeyBlob, dataToSign) → signature     optional; default = local ssh-agent.
+         Lets the caller supply the signature from elsewhere (the browser build has no
+         default signer, so there it is required for ssh keys).
 
 encrypt opts = { mode: "lines" | "blob"      (default "lines")
                  preserveWhitespace: boolean (default true, lines mode only)
@@ -263,8 +267,9 @@ KEYOPTS:  --password-file F | env SSENC_PASSWORD | TTY prompt
 | 3 | malformed input |
 | 4 | environment error (no agent, key not in agent, unsupported key type) |
 
-The CLI is the unification layer for tests. No servers or wrappers are needed: a process
-with stdin/stdout is the one thing all three languages do natively.
+The CLI is the unification layer for tests on the server side. No servers or wrappers are
+needed: a process with stdin/stdout is the one thing all three languages do natively.
+The browser build has no CLI; Playwright drives it through the library API (8.3).
 
 ---
 
@@ -277,10 +282,15 @@ envverify.sh install.sh compile.sh test.sh     run the same script in every lang
 
 typescript/
   envverify.sh install.sh compile.sh test.sh
-  src/                     core.ts siv.ts argon2id.ts format.ts lines.ts blob.ts sshagent.ts index.ts cli.ts
-  dist/ssenc.ts            THE single-file library (generated, committed)
-  dist/ssenc.js            same, transpiled
-  bin/ssenc                node dist/cli.js
+  src/                     core.ts siv.ts argon2id.ts format.ts lines.ts blob.ts
+                           sshagent.node.ts sshagent.browser.ts index.ts cli.ts
+  dist/                    generated, committed; all four are self-contained ESM, no imports
+    ssenc.node.ts          single-file library for Node.js (password + ssh-agent)
+    ssenc.node.js          same, transpiled
+    ssenc.browser.ts       single-file library for the browser (password; ssh via supplied signer)
+    ssenc.browser.js       same, transpiled
+    cli.ts / cli.js        CLI on top of ssenc.node.ts / ssenc.node.js
+  bin/ssenc                node dist/cli.ts (native type stripping); SSENC_TS_BUILD=js → node dist/cli.js
   test/
 
 rust/
@@ -295,11 +305,22 @@ bash/
   test/
 
 tests/
-  run.sh                   cross-implementation runner (bash, TAP output)
-  impls.sh                 registry: name → path of bin/ssenc
+  envverify.sh install.sh
+  run.sh                   entry point: runs the stages of 8.2 in order
+  impls.json               registry of participants (see 8.2)
+  cases.ts                 the case list: fixture × mode × key, generated from one table
+  stage1-encrypt.ts        server-side participants encrypt → out/artifacts/
+  stage2-browser.spec.ts   Playwright: browser encrypts → out/artifacts/
+  stage3-decrypt.ts        every participant decrypts every artifact → out/results.jsonl
+  stage3-browser.spec.ts   Playwright: browser decrypts every artifact
+  stage4-extra.ts          rekey matrix, diff stability, negative tests, vectors
+  report/build.ts          out/results.jsonl → out/report/index.html
+  browser/harness.html     page that loads dist/ssenc.browser.js
   fixtures/                plaintext samples (see 8.1)
   vectors/                 known-answer vectors
-  keys/                    generated at test time, git-ignored
+  out/                     everything generated; git-ignored
+
+.github/workflows/test.yml   build, run all stages, publish report to GitHub Pages
 ```
 
 ---
@@ -308,17 +329,35 @@ tests/
 
 ### 7.1 TypeScript
 
-- Primitives: **WebCrypto** (`AES-CTR`, `HMAC`, `HKDF`) — works unchanged in Node ≥ 20,
-  Deno, Bun and browsers. API is async.
+- Primitives: **WebCrypto** (`AES-CTR`, `HMAC`, `HKDF`) in both builds — the crypto core is
+  one shared source, so Node and browser cannot drift apart. API is async.
 - Argon2id is not in WebCrypto: vendor the audited `@noble/hashes` Argon2id + BLAKE2b
   sources (MIT, attribution kept) into `src/`.
-- ssh-agent: `node:net` loaded by dynamic import only when an ssh key is used, so the same
-  file still loads in a browser (password mode only there).
-- `compile.sh`: typecheck → concatenate `src/` modules in dependency order into
-  `dist/ssenc.ts` (small script, sources written with unique top-level names) →
-  typecheck the result → transpile to `dist/ssenc.js` and `dist/cli.js` with esbuild.
-  Tests run against `dist/`, not `src/`.
-- Dev dependencies only: `typescript`, `esbuild`. Runtime dependencies: none.
+- **Four deliverables, all single-file ESM with no imports of other project files:**
+
+  | File | Target | Contents |
+  |---|---|---|
+  | `dist/ssenc.node.ts` | Node.js ≥ 20 (also Deno, Bun) | everything, incl. ssh-agent client (`node:net`) |
+  | `dist/ssenc.node.js` | same | transpiled from the file above |
+  | `dist/ssenc.browser.ts` | browsers, web workers | password mode; ssh mode only with a caller-supplied `signer`; no `node:*` reference anywhere in the file |
+  | `dist/ssenc.browser.js` | same | transpiled from the file above |
+
+  The only difference between the two builds is which `sshagent.*.ts` module is included.
+  A browser cannot open a socket to ssh-agent, so the browser build has no default signer:
+  an ssh key without a `signer` throws the "environment error" kind (same as exit code 4).
+  With a `signer` (5.1) the whole ssh code path — challenge, SSHSIG blob, HKDF, slot
+  unwrap — runs in the browser and only the signature itself comes from outside.
+  All files are interchangeable between the two builds.
+- **Node runs the `.ts` file directly** (native type stripping, Node ≥ 22.18), so the
+  sources use erasable syntax only (`erasableSyntaxOnly` in `tsconfig.json`: no `enum`,
+  no `namespace`, no parameter properties) and import with explicit `.ts` extensions.
+- `compile.sh`: typecheck `src/` → for each target, concatenate the modules in dependency
+  order into `dist/ssenc.<target>.ts` (small script, sources written with unique top-level
+  names) → typecheck each generated file on its own (`lib: dom` without Node types for the
+  browser one, which proves it has no Node dependency) → transpile each to the `.js` next
+  to it, plus `dist/cli.js`, with esbuild (`format: esm`).
+- Tests run against `dist/`, not `src/`. All four files are exercised: see 8.2.
+- Dev dependencies only: `typescript`, `esbuild`, `playwright` (tests). Runtime: none.
 
 ### 7.2 Rust
 
@@ -354,29 +393,178 @@ indentation · whitespace-only lines · duplicate lines · UTF-8 multibyte and e
 invalid UTF-8 bytes · very long line (64 KiB) · line that looks like a header (`#ssenc1 …`)
 · 1 MiB random binary · binary containing NUL · sizes of exactly 0, 1, 65535, 65536, 65537 bytes.
 
-### 8.2 Layers
+### 8.2 Participants
 
-1. **Known-answer vectors** (`tests/vectors/`): primitive level (SIV, HKDF, Argon2id) and
-   file level. Because encryption is fully deterministic once a header is given, the vector
-   is simply `encrypt(fixture, key, previous = vector header) == expected bytes`.
+Five participants take part in every cross test. Each is both a producer (encrypts) and a
+consumer (decrypts):
+
+| Id | What runs | Where | How it is driven |
+|---|---|---|---|
+| `rust` | `rust/target/release/ssenc` | server | CLI |
+| `bash` | `bash/bin/ssenc` | server | CLI |
+| `node-ts` | `dist/ssenc.node.ts`, run by Node with native type stripping | server | CLI (`node dist/cli.ts`) |
+| `node-js` | `dist/ssenc.node.js` (transpiled) | server | CLI (`node dist/cli.js`) |
+| `browser-js` | `dist/ssenc.browser.js` (transpiled) | headless Chromium | Playwright |
+
+`dist/ssenc.browser.ts` cannot run in a browser as is; it is covered by the typecheck in
+`compile.sh` and by being the direct source of `ssenc.browser.js`.
+
+### 8.3 Stages
+
+"Server" below means the machine running the tests (your laptop or the CI runner), as
+opposed to the browser.
+
+```
+stage 1  server encrypt     rust, bash, node-ts, node-js encrypt every case
+                            → tests/out/artifacts/<producer>/<case>.enc
+stage 2  browser encrypt    Playwright opens harness.html, browser-js encrypts every case
+                            → tests/out/artifacts/browser-js/<case>.enc
+stage 3  decrypt all×all    every participant (browser again through Playwright) decrypts
+                            every artifact of every producer; output compared by SHA-256
+                            with the original fixture
+                            → tests/out/results.jsonl   (one record per decrypt)
+stage 4  extra suites       vectors, rekey matrix, diff stability, negative tests
+                            → appended to results.jsonl
+stage 5  report             results.jsonl → tests/out/report/index.html (+ results.json)
+```
+
+Encrypting first and decrypting later, from files on disk, means the artifacts are real
+files that can be inspected, downloaded from CI, and decrypted by hand when a cell is red.
+
+**How the browser reads and writes files.** The Playwright test (Node side) reads the
+fixture or artifact from disk and passes it into the page as base64; the page calls
+`encrypt` / `decrypt` from `ssenc.browser.js` and returns the result; the Node side writes
+it to `tests/out/`. Nothing in the page touches the file system, and no test logic lives
+in the page — it only executes the library.
+
+**SSH in the browser.** A browser cannot reach ssh-agent, so in the ssh cases the test
+exposes one function to the page (`page.exposeFunction`) that forwards a sign request to
+the test ssh-agent, and passes it as the `signer` option (5.1). Everything else — building
+the challenge, deriving the key, unwrapping the slot, encrypting — runs in the browser.
+The report labels these cells **ssh (bridged signer)** so it is clear what was and was not
+exercised there.
+
+### 8.4 Cases
+
+A case = fixture × mode × key. One table in `tests/cases.ts` generates all of them, so
+every stage and the report agree on what should exist.
+
+| Group | Fixtures | Modes | Keys | Cases |
+|---|---|---|---|---|
+| Password, full | all 16 | lines ws=1, lines ws=0, blob | password | 48 |
+| Key variety | 3 (plain text, tricky whitespace, small binary) | same 3 | ssh-ed25519, ssh-rsa, password + ssh-ed25519 (two slots, decrypted once with each key) | 27 |
+
+75 cases × 5 producers = **375 artifacts**; × 5 consumers = **1,875 decrypt checks**
+(2,100 counting both keys of the two-slot cases).
+
+- Matrix cases use a deliberately cheap Argon2id setting through the normal `--kdf` option
+  (`m=8 MiB, t=1, p=1`), otherwise the pure-TypeScript Argon2id dominates the run. The
+  default and `strong` profiles are covered by one case per producer and by the vectors.
+- Text fixtures stay under ~200 lines because of Bash's per-line cost; server stages run
+  in parallel workers. Target: whole suite under 10 minutes in CI.
+
+SSH cases start a private throwaway `ssh-agent` on a short socket path under `mktemp -d`,
+load generated passphrase-protected test keys through `SSH_ASKPASS`, and kill the agent on
+exit. They never touch the developer's own agent.
+
+### 8.5 Extra suites (stage 4)
+
+1. **Known-answer vectors** (`tests/vectors/`), every participant: primitive level (SIV,
+   HKDF, Argon2id) and file level. Encryption is fully deterministic once a header is
+   given, so a vector is `encrypt(fixture, key, previous = vector header) == expected bytes`.
    No test-only randomness hook is needed in production code.
-2. **Cross matrix**: for every encryptor E and decryptor D in {ts, rust, bash} (9 pairs) ×
-   every fixture × {lines ws=1, lines ws=0, blob} × {password, ssh-ed25519, ssh-rsa,
-   password+ssh}: `D.decrypt(E.encrypt(x)) == x`.
-3. **Rekey matrix**: encrypt with A, rekey with B, decrypt with C (27 combinations), both
-   `rotateDataKey` settings; assert the old key no longer works.
-4. **Diff stability**: change one line, re-encrypt with `--previous` using a *different*
-   implementation, assert exactly one body line differs.
-5. **Negative tests** with exact exit codes: wrong password (2), flipped bit in a token (2),
-   truncated blob (2), swapped blob chunks (2), garbage header (3), ECDSA key (4),
+2. **Rekey matrix**: encrypt with A, rekey with B, decrypt with C (5×5×5 on one fixture),
+   both `rotateDataKey` settings; assert the old key no longer works. Includes
+   password → ssh and ssh → password.
+3. **Diff stability**: change one line, re-encrypt with `--previous` using a *different*
+   participant, assert exactly one body line differs.
+4. **Negative tests** with exact error kinds: wrong password (2), flipped bit in a token
+   (2), truncated blob (2), swapped blob chunks (2), garbage header (3), ECDSA key (4),
    key missing from agent (4).
-6. **Per-language unit tests** via `<lang>/test.sh` (`node --test`, `cargo test`, plain bash).
+5. **Per-language unit tests** via `<lang>/test.sh` (`node --test`, `cargo test`, plain bash).
 
-SSH tests start a private throwaway `ssh-agent` on a short socket path under `mktemp -d`,
-load generated passphrase-protected test keys through `SSH_ASKPASS`, and kill the agent in a
-`trap`. They never touch the developer's own agent.
+### 8.6 Result records
 
-### 8.3 The three scripts
+One JSON line per check:
+
+```json
+{"suite":"cross","case":"crlf.lines-ws1.password","fixture":"crlf","mode":"lines-ws1",
+ "key":"password","producer":"bash","consumer":"browser-js","status":"pass",
+ "ms":41,"expectedSha256":"…","actualSha256":"…","detail":""}
+```
+
+`status` is one of `pass`, `fail`, `skipped` (with the reason in `detail`), `missing`.
+The report builder computes the expected set from `cases.ts` × participants, so a check
+that never ran shows up as **missing and counts as a failure**. A crashed stage cannot
+produce a green report. `tests/run.sh` exits non-zero if anything is `fail` or `missing`.
+
+### 8.7 Report
+
+One static, self-contained `index.html` (data embedded, no framework, also opens from
+`file://` after a local run). Top to bottom:
+
+**1. Run header** — commit, branch, date, link to the CI run, OS, versions of node, rustc,
+bash, openssl, OpenSSH and the browser, and totals.
+
+```
+commit 3f2a91c · main · 2026-11-21 14:02 UTC · ubuntu-24.04 · run #57
+2,100 checks   2,097 pass   3 fail   0 skipped   0 missing          [ FAILED ]
+```
+
+**2. Where it was encrypted × where it was decrypted** — the main view. Rows are
+producers, columns are consumers, each cell shows passed/total and is green only at 100%.
+
+```
+                        decrypted by →
+encrypted by ↓     rust     bash     node-ts   node-js   browser-js
+rust              84/84    84/84     84/84     84/84      84/84
+bash              84/84    84/84     84/84     84/84      81/84 ✗
+node-ts           84/84    84/84     84/84     84/84      84/84
+node-js           84/84    84/84     84/84     84/84      84/84
+browser-js        84/84    84/84     84/84     84/84      84/84
+```
+
+Filter chips above it narrow the same matrix: key (password · ssh-ed25519 · ssh-rsa ·
+two-slot) and mode (lines ws=1 · lines ws=0 · blob). So "does ssh-rsa written by the
+browser decrypt in bash?" is one click.
+
+**3. Failures first** — every failed or missing check listed in full: case, producer →
+consumer, expected and actual hash, error kind and stderr, link to the artifact file.
+Empty when the run is green.
+
+**4. Case grid** — one row per case, 25 narrow columns (producer → consumer pairs, grouped
+by producer), one coloured square per check. Shows at a glance whether a failure follows a
+fixture (a row is red), a producer (a column group is red) or a consumer (the same column
+in every group is red). Clicking a cell in the matrix above scrolls to and highlights its
+column here.
+
+**5. Other suites** — vectors (participant × vector), rekey (A → B → C, shown as one 5×5
+table per rekeying participant), diff stability, negative tests (participant × test, with
+the error kind returned).
+
+**6. Timings** — encrypt and decrypt time per participant, so regressions and the cost of
+the Bash and browser implementations stay visible.
+
+`results.json` and the artifacts of failed checks are published next to the page.
+
+### 8.8 CI and GitHub Pages
+
+`.github/workflows/test.yml`, on every push and pull request:
+
+1. `test` job, matrix over `ubuntu-latest` and `macos-latest` (Windows added in M7):
+   `install.sh` → `envverify.sh` → `compile.sh` → `tests/run.sh`. Uploads `tests/out/` as
+   a workflow artifact even when tests fail.
+2. `report` job: downloads the results of all OS jobs and builds one site with an OS
+   switch at the top of the page.
+3. `deploy` job, **only on pushes to `main`**: `actions/upload-pages-artifact` +
+   `actions/deploy-pages` → `https://stopsopa.github.io/encrypt/`. It runs when tests fail
+   too, so the page always shows the true state of `main`; the workflow itself still ends
+   red. Pull requests get the same report as a downloadable artifact, not on Pages.
+
+Pages shows the latest run of `main` only. Older runs stay available as workflow artifacts
+for GitHub's retention period.
+
+### 8.9 The three scripts
 
 `envverify.sh` checks everything and reports **all** problems at once, each as: what is
 missing, what was found, how to fix. Exit code = number of problems. Example:
@@ -392,10 +580,10 @@ missing, what was found, how to fix. Exit code = number of problems. Example:
 
 | Dir | `envverify.sh` checks | `install.sh` | `compile.sh` |
 |---|---|---|---|
-| typescript | node ≥ 20, npm, `node_modules` present | `npm ci` | typecheck, bundle to single file, transpile |
+| typescript | node ≥ 22.18 (native type stripping), npm, `node_modules` present | `npm ci` | typecheck, build the node and browser single files, transpile each |
 | rust | cargo, rustc ≥ pinned MSRV, registry reachable or vendored | `cargo fetch --locked` | `cargo build --release --locked` |
 | bash | bash ≥ 4, openssl with Argon2id + CTR + HMAC (functional probe), ssh-keygen `-Y`, xxd, base64, shellcheck (warn only) | prints package-manager command for anything missing; installs nothing silently | `bash -n`, shellcheck |
-| tests | all three `bin/ssenc` exist and answer `--version`, ssh-agent, ssh-add | — | — |
+| tests | every server participant answers `ssenc --version`, `dist/ssenc.browser.js` exists, Playwright + Chromium installed, ssh-agent, ssh-add | `npm ci`, `npx playwright install chromium` | — |
 
 ---
 
@@ -405,12 +593,12 @@ missing, what was found, how to fix. Exit code = number of problems. Example:
 |---|---|---|
 | M0 | `SPEC.md` + hand-computed primitive vectors | Spec reviewed; vectors reproduced by a throwaway script |
 | M1 | Rust library + CLI, password mode, lines + blob | Rust passes vectors and its own round trips; becomes the reference |
-| M2 | `tests/` harness, fixtures, `envverify/install/compile/test.sh` skeleton | Matrix runs with one implementation registered |
-| M3 | TypeScript single file + CLI | 2×2 matrix green |
-| M4 | Bash library + CLI | 3×3 matrix green |
-| M5 | SSH-agent slots in all three | ssh matrix green on mac + Linux |
+| M2 | `tests/` stages 1, 3, 5, fixtures, report page, `envverify/install/compile/test.sh` skeleton, CI workflow publishing to Pages | 1×1 matrix visible on GitHub Pages |
+| M3 | TypeScript node + browser single files (`.ts` and `.js` each) + CLI, Playwright stages | 4×4 matrix green (rust, node-ts, node-js, browser-js) |
+| M4 | Bash library + CLI | 5×5 matrix green |
+| M5 | SSH-agent slots in all participants, bridged signer for the browser | ssh cases green on mac + Linux |
 | M6 | `rekey`, multi-slot, `--seal`, negative tests | Full suite green |
-| M7 | CI: GitHub Actions on macOS, Ubuntu, Windows (Git Bash for the bash impl) | Green on all three |
+| M7 | Windows added to the CI matrix (Git Bash for the bash participant) | Green on all three OSes |
 | M8 | README, threat-model section, git usage guide | — |
 
 Rust goes first because its crates are the most trustworthy check of the spec; Bash goes
@@ -462,6 +650,11 @@ pure-TypeScript implementation (expected a few seconds at 64 MiB).
    rewrap only (one-line diff, but an old password plus an old clone still reads new commits).
 5. **Git integration** (clean/smudge filter or a `git ssenc` helper) is out of scope for
    this plan; the `--previous` mechanism is designed so it can be added later.
+7. **Browsers in the matrix**: Chromium only (proposed) vs. also Firefox and WebKit as
+   extra participants. Each has its own WebCrypto implementation, so it is real coverage,
+   at the cost of a 7×7 matrix and a longer run.
+8. **Cross-OS decrypt** (artifacts encrypted on macOS decrypted on Linux and the reverse):
+   not in the plan; possible later because artifacts are already uploaded as files.
 6. **Bash as pure Bash + openssl** (proposed, with the two limitations in 7.3) vs. allowing
    it to call a small helper binary, which would remove both limitations but make it less
    of an independent implementation.
