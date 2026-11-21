@@ -195,3 +195,28 @@ Errors of the config (syntax, wrong shape) are printed by `--list` with the path
 
 - `"$XX" --env` shows all `XX_*` env vars with final values, `"$XX" --help` everything else.
 - Setup problems (`XX_NODE_BINARY`, md5 mismatch between `xx.sh` and the binary) and `xx --update` are for the user to handle in their own terminal.
+
+# Migration of old xx.cjs to xx.ts
+
+If xx.* any version of config exist other than xx.ts then convert and migrate already existing commands from it to xx.ts. In the end I would prefer xx.ts
+
+create new temporary directory and enter it and do `xx --init` and bring the `// github edit  : https://github.com` from it. to that updated file.
+
+You can run it like
+
+```
+(d="$(mktemp -d "$PWD/xx-tmp-XXXXXX")" && trap 'rm -rf "$d"' EXIT && cd "$d" && xx --init && head -n 100 xx.ts)
+```
+
+That command creates a uniquely named temporary directory in the current directory and removes it by itself when done (also on failure) - verify nothing is left, it doesn't leave trash.
+also when migrating existing xx.* file to xx.ts follow the rules from stopsopa/xx for creating fresh xx.ts
+
+also VERY IMPORTANT: If for some reason you don't find that skill stopsopa/xx skill installed here right now then don't do anything from that prompt but just respond to the user:
+
+install:
+
+npx skills add stopsopa/xx -a claude-code universal -y
+
+first
+
+(You can adjust that command to how skills are installed for current project, it doesn't always have to be claude-code universal)
