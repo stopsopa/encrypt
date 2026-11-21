@@ -4,6 +4,7 @@
 #     encrypt(plain.bin, --previous encrypted.txt) == encrypted.txt   (byte for byte)
 # plus inspect and the library functions. (ssh-keyed vectors: 40-ssh.sh)
 # shellcheck source=helpers.bash
+# shellcheck disable=SC2119  # ssenc_* functions read stdin; calling them without arguments is intended
 source "$(dirname "${BASH_SOURCE[0]}")/helpers.bash"
 
 t_load_vectors

@@ -373,7 +373,7 @@ _ssenc_tags() {
   for ((b = 0; b < _N; b += 256)); do
     files=()
     for ((i = b; i < _N && i < b + 256; i++)); do
-      ref="$src[$i]"
+      ref="${src}[$i]"
       printf -- "${_ADP[i]}${!ref}" >"$_T/m/$((i - b))" || _ssenc_die ENV "cannot write to the temporary directory"
       files+=("$_T/m/$((i - b))")
     done
@@ -463,6 +463,7 @@ _ssenc_line_text() {
 }
 
 _ssenc_field() { # B64URL BYTES WHAT -> _HEX
+  # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
   _ssenc_b64d "$1" && ((${#_HEX} == $2 * 2)) || _ssenc_die MALFORMED "invalid $3 in header"
 }
 
@@ -501,15 +502,15 @@ _ssenc_parse() {
   ((size == 0)) && _ssenc_die MALFORMED "not an ssenc1 file (missing '#ssenc1' header)"
   while :; do
     head -c "$win" "$file" | _ssenc_esclines >"$_T/hdr"
-    P_MODE=lines P_WS=1 P_PAD=0 P_CHUNK=0 P_HEADER= P_NSLOTS=0 P_SEAL= P_HASSEAL=0
+    P_MODE=lines P_WS=1 P_PAD=0 P_CHUNK=0 P_HEADER='' P_NSLOTS=0 P_SEAL='' P_HASSEAL=0
     P_STYPE=() P_SM=() P_ST=() P_SP=() P_SKT=() P_SFP=() P_SSALT=() P_SWRAP=() P_SLOTLINE=()
-    off=0 first=1 status=done
+    off=0 first=1 status='done'
     while IFS= read -r l || [[ -n $l ]]; do
       n=$((${#l} / 4))
       complete=1
       [[ $l != *"$_X0A" ]] && ((win < size)) && complete=0
       if ((first)); then
-        if ((!complete)); then status=more; break; fi
+        if ((!complete)); then status='more'; break; fi
         first=0
         _ssenc_line_text "$l" && [[ $_TEXT == "#ssenc1 "* ]] ||
           _ssenc_die MALFORMED "not an ssenc1 file (missing '#ssenc1' header)"
@@ -524,26 +525,26 @@ _ssenc_parse() {
           _ssenc_die MALFORMED "invalid '#ssenc1' header line"
         fi
       elif [[ $l == "$pre_slot"* ]]; then
-        if ((!complete)); then status=more; break; fi
+        if ((!complete)); then status='more'; break; fi
         ((P_HASSEAL)) && _ssenc_die MALFORMED "slot line after seal line"
         _ssenc_line_text "$l" || _ssenc_die MALFORMED "unrecognised slot line in header"
         _ssenc_parse_slot "$_TEXT"
       elif [[ $l == "$pre_seal"* ]]; then
-        if ((!complete)); then status=more; break; fi
+        if ((!complete)); then status='more'; break; fi
         ((P_HASSEAL)) || [[ $P_MODE != lines ]] && _ssenc_die MALFORMED "unexpected seal line"
         _ssenc_line_text "$l" && [[ $_TEXT =~ $_RE_SEAL ]] || _ssenc_die MALFORMED "invalid seal line"
         _ssenc_field "${_TEXT:6}" 32 "seal"
         P_SEAL=$_HEX P_HASSEAL=1
       else
         # First body line - unless it is cut short and could still become a header line.
-        if ((!complete && n < 6)); then status=more; else status=body; fi
+        if ((!complete && n < 6)); then status='more'; else status=body; fi
         break
       fi
       off=$((off + n))
     done <"$_T/hdr"
     # status=done: every line of the window was a header line; if the window does not
     # cover the whole file, more header lines may follow.
-    [[ $status == done ]] && ((win < size)) && status=more
+    [[ $status == 'done' ]] && ((win < size)) && status='more'
     [[ $status != more ]] && break
     win=$((win * 8))
   done
@@ -621,7 +622,7 @@ _ssenc_agent_load() {
 # KIND = sshfp: VALUE is a SHA256:... fingerprint) -> R_HEX R_KT R_FP
 _ssenc_ssh_resolve() {
   local kind=$1 value=$2 line parts i found=0
-  R_HEX= R_KT= R_FP=
+  R_HEX='' R_KT='' R_FP=
   if [[ $kind == sshpub ]]; then
     while IFS= read -r line || [[ -n $line ]]; do
       line=${line%$'\r'}
@@ -661,7 +662,7 @@ _ssenc_ssh_resolve() {
 # public key is written to a private temp file, so ssh-keygen can never fall back to a
 # private key file lying next to the user's .pub file (and never prompts).
 _ssenc_ssh_kek() {
-  local salt=$1 i idx=-1 line b64= in=0 sig expected alg_end
+  local salt=$1 i idx=-1 line b64='' in=0 sig expected alg_end
   _ssenc_agent_load
   for ((i = 0; i < ${#_AG_FP[@]}; i++)); do
     [[ ${_AG_FP[i]} == "$R_FP" ]] && { idx=$i; break; }
@@ -697,6 +698,7 @@ _ssenc_ssh_kek() {
   _ssenc_ssh_string "$sig" 0 || _ssenc_die ENV "ssh signer returned an unexpected signature (need $expected)"
   _ssenc_hex2text "$_STR"
   alg_end=$_NEXT
+  # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
   [[ $_TEXT == "$expected" ]] && _ssenc_ssh_string "$sig" "$alg_end" && ((_NEXT == ${#sig})) ||
     _ssenc_die ENV "ssh signer returned an unexpected signature (need $expected)"
   _ssenc_hkdf "$sig" "$salt" "ssenc1/ssh-kek"
@@ -711,14 +713,14 @@ _ssenc_ssh_kek() {
 # _ssenc_make_slots DEKHEX KIND-ARRAY VALUE-ARRAY M T P -> _SLOTS[]
 _ssenc_make_slots() {
   local dek=$1 kn=$2 vn=$3 m=$4 t=$5 p=$6 i n ref kind val salt
-  ref="$kn[@]"
+  ref="${kn}[@]"
   local kinds=("${!ref}")
   n=${#kinds[@]}
   ((n > 0)) || _ssenc_die USAGE "at least one key is required"
   _SLOTS=()
   for ((i = 0; i < n; i++)); do
     [[ ${kinds[i]} == pw ]] || continue
-    ref="$vn[$i]"
+    ref="${vn}[$i]"
     val=${!ref}
     [[ -n $val ]] || _ssenc_die USAGE "password must not be empty"
     _ssenc_rand 16
@@ -733,7 +735,7 @@ _ssenc_make_slots() {
   for ((i = 0; i < n; i++)); do
     kind=${kinds[i]}
     [[ $kind == pw ]] && continue
-    ref="$vn[$i]"
+    ref="${vn}[$i]"
     _ssenc_ssh_resolve "$kind" "${!ref}"
     _ssenc_rand 32
     salt=$_RAND
@@ -749,13 +751,13 @@ _ssenc_make_slots() {
 # Opens the parsed file (P_*) with the first key that fits -> _DEK, or dies with AUTH.
 _ssenc_open() {
   local kn=$1 vn=$2 i j n ref kind val
-  ref="$kn[@]"
+  ref="${kn}[@]"
   local kinds=("${!ref}")
   n=${#kinds[@]}
   ((n > 0)) || _ssenc_die USAGE "at least one key is required"
   for ((i = 0; i < n; i++)); do
     kind=${kinds[i]}
-    ref="$vn[$i]"
+    ref="${vn}[$i]"
     val=${!ref}
     if [[ $kind == pw ]]; then
       [[ -n $val ]] || _ssenc_die USAGE "password must not be empty"
@@ -783,7 +785,7 @@ _ssenc_open() {
 # Splits an escaped line (without terminator) -> _LEAD, _CORE, _TRAIL
 _ssenc_wsplit() {
   local l=$1 s t nl nt
-  _LEAD= _TRAIL= _CORE=$l
+  _LEAD='' _TRAIL='' _CORE=$l
   case $l in
     "$_X20"* | "$_X09"* | *"$_X20" | *"$_X09") ;;
     *) return 0 ;;
@@ -830,12 +832,12 @@ _ssenc_lines_encrypt() {
     if ((ws)); then
       _ssenc_wsplit "$_LINE"
       if [[ -z $_CORE ]]; then
-        pre[k]=$l post[k]= item[k]=-1
+        pre[k]=$l post[k]='' item[k]=-1
         k=$((k + 1))
         continue
       fi
     else
-      _LEAD= _TRAIL= _CORE=$_LINE
+      _LEAD='' _TRAIL='' _CORE=$_LINE
     fi
     if ((pad > 0)); then
       len=$((${#_CORE} / 4))
@@ -871,7 +873,7 @@ _ssenc_lines_decrypt() {
     _ssenc_term "$l"
     _ssenc_wsplit "$_LINE"
     if [[ -z $_CORE ]]; then
-      pre[k]=$l post[k]= item[k]=-1
+      pre[k]=$l post[k]='' item[k]=-1
       k=$((k + 1))
       continue
     fi
@@ -940,7 +942,7 @@ _ssenc_blob_encrypt() {
   if ((chunk < _SSENC_STREAM_MIN)); then
     _N=0 _PT=() _ADP=()
     if ((size == 0)); then
-      _PT[0]= _N=1
+      _PT[0]='' _N=1
     else
       xxd -p <"$plain" | tr -d '\n' | fold -w $((chunk * 2)) | sed -e 's/../\\x&/g' >"$_T/chunks"
       while IFS= read -r l || [[ -n $l ]]; do
@@ -1006,7 +1008,7 @@ _ssenc_base64_decode() {
 
 # _ssenc_blob_decrypt DEK CHUNK OUTFILE    (body of the parsed file P_*)
 _ssenc_blob_decrypt() {
-  local dek=$1 chunk=$2 out=$3 n junk last v padding= rec count rsize i l f tag line short=0
+  local dek=$1 chunk=$2 out=$3 n junk last v padding='' rec count rsize i l f tag line short=0
   _ssenc_body | tr -d ' \t\r\n' >"$_T/b64"
   _ssenc_size "$_T/b64"
   n=$_SIZE
@@ -1187,6 +1189,7 @@ _ssenc_ssh_key_arg() {
 
 _ssenc_read_input() { # [PATH] -> $_T/in
   if [[ -n ${1+x} ]]; then
+    # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
     [[ -r $1 && ! -d $1 ]] && cat -- "$1" >"$_T/in" 2>/dev/null || _ssenc_die USAGE "cannot read input: $1"
   else
     cat >"$_T/in" || _ssenc_die USAGE "cannot read input"
@@ -1207,7 +1210,7 @@ _ssenc_op() {
   shift
   local in_path out_path pw_file new_pw_file previous kdf a v
   local fresh=0 rewrap_only=0 have_in=0 have_out=0 have_pw_file=0 have_new_pw_file=0 have_previous=0 have_kdf=0
-  local o_mode= o_ws= o_pad= o_chunk= o_seal=
+  local o_mode='' o_ws='' o_pad='' o_chunk='' o_seal=
   local -a ssh_keys=() new_ssh_keys=()
 
   while (($# > 0)); do
@@ -1261,7 +1264,7 @@ _ssenc_op() {
 
   # keys
   local -a K_KIND=() K_VAL=() NK_KIND=() NK_VAL=()
-  local have_pw=0 pw_hex= s
+  local have_pw=0 pw_hex='' s
   if ((have_pw_file)); then
     _ssenc_read_password_file "$pw_file"
     pw_hex=$_PWHEX have_pw=1
@@ -1306,6 +1309,7 @@ _ssenc_op() {
     encrypt)
       local have_prev=0 auto_prev=0
       if ((have_previous)); then
+        # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
         [[ -r $previous && ! -d $previous ]] && cat -- "$previous" >"$_T/prev" 2>/dev/null ||
           _ssenc_die USAGE "cannot read --previous file: $previous"
         have_prev=1
@@ -1412,7 +1416,7 @@ _ssenc_only() {
 }
 
 _ssenc_inspect_json() {
-  local i slots= sep=
+  local i slots='' sep=
   for ((i = 0; i < P_NSLOTS; i++)); do
     if [[ ${P_STYPE[i]} == pw ]]; then
       slots+="$sep{\"type\":\"pw\",\"kdf\":\"argon2id\",\"m\":${P_SM[i]},\"t\":${P_ST[i]},\"p\":${P_SP[i]}}"

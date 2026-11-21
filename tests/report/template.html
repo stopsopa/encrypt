@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ssenc test report</title>
+<script src="https://cdn.jsdelivr.net/gh/MarketingPipeline/GitHub-Ribbon-Web-Component/dist/github-ribbon-wc.min.js" defer></script>
 <style>
+@media print { github-ribbon { display: none; } }
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --ink: #1b2330; --muted: #5d6878; --line: #d9dee6;
   --pass: #17803d; --pass-bg: #dcf5e4; --fail: #c0262d; --fail-bg: #fde3e4;
@@ -39,7 +41,7 @@ code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
 a { color: var(--accent); }
 section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 14px 0; }
 .scroll { overflow-x: auto; }
-.topbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.topbar { padding-right: 120px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .verdict { font-weight: 700; padding: 6px 14px; border-radius: 999px; font-size: 15px; white-space: nowrap; }
 .verdict.pass { background: var(--pass-bg); color: var(--pass); }
 .verdict.fail { background: var(--fail-bg); color: var(--fail); }
@@ -93,6 +95,7 @@ nav.toc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13.5px; marg
 </style>
 </head>
 <body>
+<github-ribbon link="https://github.com/stopsopa/encrypt" type="right" color="#679d2c">Fork me on GitHub</github-ribbon>
 <main id="app"></main>
 <script>
 const DATA = /*__DATA__*/null;

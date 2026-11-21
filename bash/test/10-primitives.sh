@@ -7,7 +7,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/helpers.bash"
 # an array closed by a line holding only "}" or "},". That is all this parser relies on.
 section=
 n=0
-f_ikm= f_salt= f_info= f_out= f_parent= f_purpose= f_ad= f_pt= f_kmac= f_kenc= f_password= f_m= f_t= f_p=
+f_ikm='' f_salt='' f_info='' f_out='' f_parent='' f_purpose='' f_ad='' f_pt='' f_kmac='' f_kenc='' f_password='' f_m='' f_t='' f_p=
 
 run_entry() {
   local got pwhex
