@@ -5,6 +5,10 @@ shared test suite that proves every implementation can read what every other one
 
 `ssenc` is a working name (see [Open decisions](#12-open-decisions)).
 
+> **Status: implemented.** The normative format is in [SPEC.md](SPEC.md); usage is in
+> [README.md](README.md). Where the implementation differs from this plan it is listed in
+> [section 13](#13-what-changed-during-implementation).
+
 ---
 
 ## 1. Summary of the proposal
@@ -306,20 +310,22 @@ bash/
 
 tests/
   envverify.sh install.sh
-  run.sh                   entry point: runs the stages of 8.2 in order
-  impls.json               registry of participants (see 8.2)
-  cases.ts                 the case list: fixture × mode × key, generated from one table
-  stage1-encrypt.ts        server-side participants encrypt → out/artifacts/
-  stage2-browser.spec.ts   Playwright: browser encrypts → out/artifacts/
-  stage3-decrypt.ts        every participant decrypts every artifact → out/results.jsonl
-  stage3-browser.spec.ts   Playwright: browser decrypts every artifact
-  stage4-extra.ts          rekey matrix, diff stability, negative tests, vectors
-  report/build.ts          out/results.jsonl → out/report/index.html
+  run.sh                   entry point: test ssh-agent, run.ts, report
+  run.ts                   the runner: plans every check, runs the stages of 8.3
+  lib/participants.ts      the five participants (4 CLIs + browser via Playwright)
+  lib/cases.ts             the case list: fixture × mode × key, generated from one table
+  lib/fixtures.ts          deterministic plaintext samples (see 8.1)
+  lib/agent.sh             throwaway ssh-agent with the test keys
+  stages/cross.ts          stages 1-3: encrypt to files, decrypt all with all
+  stages/extra.ts          stage 4: vectors, rekey, diff stability, negative tests
+  report/build.ts          out/ → out/report/index.html   (template.html)
   browser/harness.html     page that loads dist/ssenc.browser.js
-  fixtures/                plaintext samples (see 8.1)
+  keys/                    fixed test-only ssh keys
   vectors/                 known-answer vectors
   out/                     everything generated; git-ignored
 
+xx.ts                      all scripts as commands of the xx menu
+.tool-versions             Node.js version (asdf), also used by CI
 .github/workflows/test.yml   build, run all stages, publish report to GitHub Pages
 ```
 
@@ -331,8 +337,9 @@ tests/
 
 - Primitives: **WebCrypto** (`AES-CTR`, `HMAC`, `HKDF`) in both builds — the crypto core is
   one shared source, so Node and browser cannot drift apart. API is async.
-- Argon2id is not in WebCrypto: vendor the audited `@noble/hashes` Argon2id + BLAKE2b
-  sources (MIT, attribution kept) into `src/`.
+- Argon2id is not in WebCrypto, so the file contains its own Argon2id + BLAKE2b
+  (`src/02-blake2b.ts`, `src/03-argon2id.ts`), checked against OpenSSL's output and the
+  shared vectors. See section 13 for why it is not a vendored library.
 - **Four deliverables, all single-file ESM with no imports of other project files:**
 
   | File | Target | Contents |
@@ -355,9 +362,9 @@ tests/
   order into `dist/ssenc.<target>.ts` (small script, sources written with unique top-level
   names) → typecheck each generated file on its own (`lib: dom` without Node types for the
   browser one, which proves it has no Node dependency) → transpile each to the `.js` next
-  to it, plus `dist/cli.js`, with esbuild (`format: esm`).
+  to it, plus `dist/cli.js`, with the TypeScript compiler's `transpileModule`.
 - Tests run against `dist/`, not `src/`. All four files are exercised: see 8.2.
-- Dev dependencies only: `typescript`, `esbuild`, `playwright` (tests). Runtime: none.
+- Dev dependencies only: `typescript` (and `playwright` in `tests/`). Runtime: none.
 
 ### 7.2 Rust
 
@@ -451,11 +458,13 @@ every stage and the report agree on what should exist.
 
 | Group | Fixtures | Modes | Keys | Cases |
 |---|---|---|---|---|
-| Password, full | all 16 | lines ws=1, lines ws=0, blob | password | 48 |
-| Key variety | 3 (plain text, tricky whitespace, small binary) | same 3 | ssh-ed25519, ssh-rsa, password + ssh-ed25519 (two slots, decrypted once with each key) | 27 |
+| Password, text and small binaries | 13 | lines ws=1, lines ws=0, blob | password | 39 |
+| Password, large binaries (64 KiB – 1 MiB) | 4 | blob only | password | 4 |
+| Key variety | 3 (plain text, tricky whitespace, small binary) | all 3 | ssh-ed25519, ssh-rsa, password + ssh-ed25519 (two slots, decrypted once with each key) | 27 |
 
-75 cases × 5 producers = **375 artifacts**; × 5 consumers = **1,875 decrypt checks**
-(2,100 counting both keys of the two-slot cases).
+70 cases × 5 producers = **350 encrypted files**; each is decrypted by 5 consumers, the
+two-slot ones with both keys: **1,975 decrypt checks**. Large random binaries are not run
+in lines mode: they would be thousands of lines of noise and take Bash minutes.
 
 - Matrix cases use a deliberately cheap Argon2id setting through the normal `--kdf` option
   (`m=8 MiB, t=1, p=1`), otherwise the pure-TypeScript Argon2id dominates the run. The
@@ -670,3 +679,19 @@ pure-TypeScript implementation (expected a few seconds at 64 MiB).
    at the cost of a 7×7 matrix and a longer run.
 8. **Cross-OS decrypt** (artifacts encrypted on macOS decrypted on Linux and the reverse):
    not in the plan; possible later because artifacts are already uploaded as files.
+
+---
+
+## 13. What changed during implementation
+
+| Plan | What was built | Why |
+|---|---|---|
+| Vendor `@noble/hashes` Argon2id into the TypeScript file | Own Argon2id + BLAKE2b, about 250 lines | A real single `.ts` file needs sources that concatenate cleanly; adapting a multi-module library meant forking it anyway. Output is verified against OpenSSL for many parameter sets and against the shared vectors in all three languages. Default cost takes about 1.3 s in Node |
+| Transpile with esbuild | TypeScript compiler `transpileModule` | One dev dependency less |
+| Playwright spec files for the browser stages | The browser is one more participant of the same runner (`tests/lib/participants.ts`), driven with the Playwright library | Rekey and diff chains go through several participants (A encrypts, B rekeys, C decrypts); one runner keeps them uniform |
+| 16 fixtures, 75 cases | 17 fixtures, 70 cases | Large binaries only in blob mode (section 8.4) |
+| Fixture files committed | Generated deterministically at test time into `tests/out/fixtures/` | Avoids megabytes of random bytes in git |
+| Test ssh keys generated at test time | Fixed test keys committed in `tests/keys/` (passphrase `ssenc-test`) | Known-answer vectors for ssh slots need stable keys |
+| — | `encrypt … --chunk N`, `--fresh`, `decryptToString` (TypeScript) | Needed for vectors with small chunks, for overwriting a file made with another key, and convenience |
+| — | `scripts/verify-lib.sh`, `xx.ts`, `.tool-versions` | Shared envverify output format, command menu, pinned Node.js |
+| Windows in CI (M7) | Not done | Could not be tested here; the Windows agent pipe code is written but unverified |

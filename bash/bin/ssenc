@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# ssenc CLI, Bash implementation. See ../../SPEC.md section 7 and ../ssenc.sh.
+if ((BASH_VERSINFO[0] < 4)); then
+  echo "ssenc: ENV: bash >= 4.0 is required, this is $BASH_VERSION (run bash/envverify.sh)" >&2
+  exit 4
+fi
+# shellcheck source=../ssenc.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ssenc.sh" || exit 4
+ssenc_cli "$@"

@@ -1,0 +1,13 @@
+{
+  "name": "ssenc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "password / ssh-agent encryption to diff-friendly ASCII text",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.18" },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

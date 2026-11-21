@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ssenc test report</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b2330; --muted: #5d6878; --line: #d9dee6;
+  --pass: #17803d; --pass-bg: #dcf5e4; --fail: #c0262d; --fail-bg: #fde3e4;
+  --miss: #96600a; --miss-bg: #fdefc8; --skip: #55607a; --skip-bg: #e6e9f0;
+  --accent: #2456d6; --accent-bg: #e4ecff; --code: #eef1f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --panel: #1a2029; --ink: #e6eaf0; --muted: #98a3b3; --line: #2e3744;
+    --pass: #5fd08a; --pass-bg: #143823; --fail: #ff8088; --fail-bg: #4a1a1e;
+    --miss: #f0c060; --miss-bg: #43340f; --skip: #a8b3c8; --skip-bg: #2a3140;
+    --accent: #8fb0ff; --accent-bg: #1f2e55; --code: #232b37;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --panel: #1a2029; --ink: #e6eaf0; --muted: #98a3b3; --line: #2e3744;
+  --pass: #5fd08a; --pass-bg: #143823; --fail: #ff8088; --fail-bg: #4a1a1e;
+  --miss: #f0c060; --miss-bg: #43340f; --skip: #a8b3c8; --skip-bg: #2a3140;
+  --accent: #8fb0ff; --accent-bg: #1f2e55; --code: #232b37;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 24px; margin: 8px 0 2px; }
+h2 { font-size: 18px; margin: 0 0 4px; }
+h3 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 6px 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 14px 0; }
+.scroll { overflow-x: auto; }
+.topbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.verdict { font-weight: 700; padding: 6px 14px; border-radius: 999px; font-size: 15px; white-space: nowrap; }
+.verdict.pass { background: var(--pass-bg); color: var(--pass); }
+.verdict.fail { background: var(--fail-bg); color: var(--fail); }
+.counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+.count { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; min-width: 96px; background: var(--panel); cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.count b { display: block; font-size: 22px; line-height: 1.2; }
+.count.pass b { color: var(--pass); } .count.fail b { color: var(--fail); } .count.missing b { color: var(--miss); } .count.skipped b { color: var(--skip); }
+.tabs, .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+.chip, .tab { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 3px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+.tab { border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+.chip[aria-pressed="true"], .tab[aria-selected="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.chips .label { font-size: 13px; color: var(--muted); min-width: 44px; }
+table { border-collapse: collapse; }
+th, td { padding: 5px 9px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+table.matrix td, table.matrix th { text-align: center; border: 1px solid var(--line); }
+table.matrix th.row { text-align: right; }
+.cell { display: block; width: 100%; border: 0; font: inherit; font-size: 13.5px; padding: 6px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cell.pass { background: var(--pass-bg); color: var(--pass); }
+.cell.fail { background: var(--fail-bg); color: var(--fail); font-weight: 700; }
+.cell.missing { background: var(--miss-bg); color: var(--miss); font-weight: 700; }
+.cell.none { background: transparent; color: var(--muted); cursor: default; }
+td.pad0 { padding: 2px; }
+.axis { font-size: 12.5px; color: var(--muted); }
+.grid { border-collapse: separate; border-spacing: 0; }
+.grid td, .grid th { border: 0; padding: 1px; }
+.grid th.name { text-align: left; font-weight: 400; color: var(--ink); padding-right: 10px; white-space: nowrap; font-size: 12.5px; }
+.grid th.group { text-align: center; border-left: 2px solid var(--line); font-size: 12px; padding: 2px 4px; }
+.grid th.sub { font-size: 10.5px; font-weight: 400; text-align: center; padding: 0 0 3px; }
+.grid td.first, .grid th.first { border-left: 2px solid var(--line); padding-left: 4px; }
+.sq { display: block; width: 15px; height: 15px; border-radius: 3px; border: 0; padding: 0; cursor: pointer; font-size: 10px; line-height: 15px; text-align: center; color: #fff; }
+.sq.pass { background: var(--pass); opacity: .8; } .sq.fail { background: var(--fail); } .sq.missing { background: var(--miss); } .sq.skipped { background: var(--skip); } .sq.none { background: transparent; cursor: default; }
+.sq:hover { outline: 2px solid var(--accent); opacity: 1; }
+.badge { display: inline-block; border-radius: 4px; padding: 0 6px; font-size: 12px; font-weight: 700; }
+.badge.pass { background: var(--pass-bg); color: var(--pass); } .badge.fail { background: var(--fail-bg); color: var(--fail); }
+.badge.missing { background: var(--miss-bg); color: var(--miss); } .badge.skipped { background: var(--skip-bg); color: var(--skip); }
+.failure { border: 1px solid var(--line); border-left: 4px solid var(--fail); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.failure.missing { border-left-color: var(--miss); }
+pre { background: var(--code); padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+input[type="search"], select { font: inherit; font-size: 14px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+input[type="search"] { min-width: min(320px, 100%); }
+.explorer td { font-size: 13px; }
+.explorer td.t { min-width: 260px; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.bar { height: 8px; background: var(--accent); border-radius: 4px; min-width: 2px; opacity: .75; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--muted); margin: 6px 0; align-items: center; }
+.legend span { display: inline-flex; gap: 5px; align-items: center; }
+.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13.5px; margin-top: 8px; }
+.theme { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 4px 9px; cursor: pointer; font: inherit; font-size: 13px; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const DATA = /*__DATA__*/null;
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const SHORT = { rust: "rs", bash: "sh", "node-ts": "ts", "node-js": "js", "browser-js": "web" };
+const short = (id) => SHORT[id] ?? id;
+const SUITES = [
+  ["cross", "Encrypt → decrypt matrix"], ["encrypt", "Encryption (stages 1–2)"], ["vectors", "Known-answer vectors"],
+  ["rekey", "Rekey"], ["diff", "Diff stability"], ["negative", "Negative tests"], ["unit", "Unit tests"],
+];
+const DEFAULTS = { os: "0", key: "", mode: "", suite: "", producer: "", consumer: "", via: "", status: "", q: "", limit: "150" };
+const state = { ...DEFAULTS };
+
+function readHash() {
+  Object.assign(state, DEFAULTS);
+  for (const [k, v] of new URLSearchParams(location.hash.slice(1))) if (k in DEFAULTS) state[k] = v;
+  if (!DATA.runs[Number(state.os)]) state.os = "0";
+}
+function writeHash() {
+  const p = new URLSearchParams();
+  for (const k of Object.keys(DEFAULTS)) if (state[k] !== DEFAULTS[k]) p.set(k, state[k]);
+  const h = p.toString();
+  history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
+}
+function set(patch, scrollTo) {
+  Object.assign(state, patch);
+  writeHash();
+  render();
+  if (scrollTo) document.getElementById(scrollTo)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+/** Opens the explorer with exactly these filters. */
+function explore(filter) {
+  set({ suite: "", producer: "", consumer: "", via: "", status: "", q: "", limit: DEFAULTS.limit, ...filter }, "explorer");
+}
+
+const run = () => DATA.runs[Number(state.os)];
+const isBad = (c) => c.status === "fail" || c.status === "missing";
+const tally = (list) => {
+  const t = { total: list.length, pass: 0, fail: 0, missing: 0, skipped: 0 };
+  for (const c of list) t[c.status]++;
+  return t;
+};
+const cls = (t) => (t.total === 0 ? "none" : t.fail ? "fail" : t.missing ? "missing" : "pass");
+const uniq = (list) => [...new Set(list)];
+const median = (xs) => { if (!xs.length) return null; const s = xs.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const fmtMs = (ms) => (ms == null ? "–" : ms >= 10000 ? (ms / 1000).toFixed(0) + " s" : ms >= 1000 ? (ms / 1000).toFixed(1) + " s" : Math.round(ms) + " ms");
+
+function header() {
+  const r = run(), m = r.meta, t = tally(r.checks);
+  const allBad = DATA.runs.reduce((n, x) => n + x.checks.filter(isBad).length, 0);
+  const ok = t.fail + t.missing === 0;
+  const commit = m.commit ? (m.repoUrl ? `<a href="${esc(m.repoUrl)}/commit/${esc(m.commit)}"><code>${esc(String(m.commit).slice(0, 7))}</code></a>` : `<code>${esc(String(m.commit).slice(0, 7))}</code>`) + (m.dirty ? " + uncommitted changes" : "") : "";
+  const count = (k, label) => `<button class="count ${k}" data-explore='${esc(JSON.stringify(k === "total" ? {} : { status: k }))}'><b>${t[k]}</b>${label}</button>`;
+  return `<div class="topbar">
+    <div><h1>ssenc — cross-implementation test report</h1>
+      <div class="muted small">Encrypt in every implementation, save to files, decrypt everything with everything.</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="verdict ${ok ? "pass" : "fail"}">${ok ? "✓ ALL PASSED" : "✗ FAILED"}</span>
+      <button class="theme" id="theme" title="switch light / dark">◐ theme</button></div>
+  </div>
+  ${DATA.runs.length > 1 ? `<div class="tabs" role="tablist"><span class="axis">operating system:</span>${DATA.runs.map((x, i) => {
+    const b = x.checks.filter(isBad).length;
+    return `<button class="tab" role="tab" aria-selected="${i === Number(state.os)}" data-set='{"os":"${i}"}'>${b ? "✗" : "✓"} ${esc(x.meta.os)}${b ? " (" + b + ")" : ""}</button>`;
+  }).join("")}${allBad && ok ? `<span class="badge fail">another OS has failures</span>` : ""}</div>` : ""}
+  <section>
+    ${m.broken ? `<p class="badge missing">${esc(m.broken)}</p>` : ""}
+    <div class="small"><b>${esc(m.os)}</b> <span class="muted">(${esc(m.osDetail ?? "")})</span>
+      · commit ${commit} on <code>${esc(m.branch ?? "?")}</code> · ${esc((m.date ?? "").replace("T", " ").slice(0, 16))} UTC
+      ${m.runUrl ? ` · <a href="${esc(m.runUrl)}">CI run #${esc(m.runNumber)}</a>` : " · local run"}
+      ${m.filter && (m.filter.only || m.filter.suites || m.filter.skipUnit) ? ` · <span class="badge missing">partial run: ${esc(JSON.stringify(m.filter))}</span>` : ""}</div>
+    <div class="counts">${count("total", "checks")}${count("pass", "passed")}${count("fail", "failed")}${count("missing", "missing")}${t.skipped ? count("skipped", "skipped") : ""}</div>
+    <div class="small muted">“Missing” = planned but never produced a result (a crashed stage); it counts as a failure. Click any number, cell or square on this page to see the individual checks.</div>
+    <nav class="toc"><a href="#matrix">Matrix</a><a href="#failures">Failures</a><a href="#grid">Case grid</a><a href="#suites">Other suites</a><a href="#timings">Timings</a><a href="#explorer">All checks</a><a href="#about">Participants &amp; environment</a><a href="results.json">results.json</a></nav>
+  </section>`;
+}
+
+function chips(label, key, values) {
+  return `<div class="chips"><span class="label">${label}</span><button class="chip" aria-pressed="${state[key] === ""}" data-set='${esc(JSON.stringify({ [key]: "" }))}'>all</button>${values.map((v) =>
+    `<button class="chip" aria-pressed="${state[key] === v}" data-set='${esc(JSON.stringify({ [key]: v }))}'>${esc(v)}</button>`).join("")}</div>`;
+}
+
+function crossFiltered() {
+  return run().checks.filter((c) => c.suite === "cross" && (!state.key || c.key === state.key) && (!state.mode || c.mode === state.mode));
+}
+
+function matrix() {
+  const all = run().checks.filter((c) => c.suite === "cross");
+  if (!all.length) return `<section id="matrix"><h2>Encrypted by × decrypted by</h2><p class="muted">The cross suite was not part of this run.</p></section>`;
+  const list = crossFiltered();
+  const producers = uniq(all.map((c) => c.producer)), consumers = uniq(all.map((c) => c.consumer));
+  const where = Object.fromEntries((run().meta.participants ?? []).map((p) => [p.id, p.where]));
+  const rows = producers.map((p) => `<tr><th class="row">${esc(p)}<div class="axis">${esc(where[p] ?? "")}</div></th>${consumers.map((c) => {
+    const t = tally(list.filter((x) => x.producer === p && x.consumer === c));
+    return `<td class="pad0"><button class="cell ${cls(t)}" ${t.total ? `data-explore='${esc(JSON.stringify({ suite: "cross", producer: p, consumer: c }))}'` : "disabled"} title="encrypted by ${esc(p)}, decrypted by ${esc(c)}">${t.total ? (t.fail + t.missing ? "✗ " : "✓ ") + t.pass + "/" + t.total : "–"}</button></td>`;
+  }).join("")}</tr>`).join("");
+  const sshBridged = consumers.includes("browser-js") ? `<p class="small muted">ssh cells of <code>browser-js</code> use a <b>bridged signer</b>: a browser cannot reach ssh-agent, so the test runner forwards the page's sign request to the test agent. Building the challenge, key derivation and all encryption still run in the browser.</p>` : "";
+  return `<section id="matrix"><h2>Encrypted by × decrypted by</h2>
+    <p class="muted small">Each cell: files encrypted by the row participant that the column participant decrypted back to the exact original bytes.</p>
+    ${chips("key", "key", uniq(all.map((c) => c.key)))}${chips("mode", "mode", uniq(all.map((c) => c.mode)))}
+    <div class="scroll"><table class="matrix"><tr><th class="row axis">encrypted by ↓ &nbsp; decrypted by →</th>${consumers.map((c) => `<th>${esc(c)}<div class="axis">${esc(where[c] ?? "")}</div></th>`).join("")}</tr>${rows}</table></div>
+    ${sshBridged}</section>`;
+}
+
+function failureCard(c) {
+  return `<div class="failure ${c.status}"><span class="badge ${c.status}">${c.status}</span> <b>${esc(c.title)}</b>
+    <div class="small muted mono">${esc(c.id)}</div>
+    ${c.expected ? `<div class="small">expected <code>${esc(c.expected)}</code> · got <code>${esc(c.actual)}</code></div>` : ""}
+    ${c.detail ? `<pre>${esc(c.detail)}</pre>` : ""}
+    ${c.artifact ? `<div class="small"><a href="${esc(c.artifact)}">encrypted file used by this check</a></div>` : ""}</div>`;
+}
+
+function failures() {
+  const bad = run().checks.filter(isBad);
+  const shown = bad.slice(0, 40);
+  return `<section id="failures"><h2>Failures${bad.length ? " (" + bad.length + ")" : ""}</h2>${bad.length === 0
+    ? `<p><span class="badge pass">none</span> Every planned check ran and passed.</p>`
+    : shown.map(failureCard).join("") + (bad.length > shown.length ? `<p><button class="linkbtn" data-explore='{"status":"bad"}'>show all ${bad.length} in the explorer</button></p>` : "")}</section>`;
+}
+
+function grid() {
+  const list = crossFiltered();
+  if (!list.length) return "";
+  const producers = uniq(list.map((c) => c.producer)), consumers = uniq(list.map((c) => c.consumer));
+  const rowKey = (c) => c.case + (c.key.startsWith("two-slot") ? " · " + c.key.replace("two-slot ", "") : "");
+  const rows = uniq(list.map(rowKey));
+  const index = new Map(list.map((c) => [rowKey(c) + "|" + c.producer + "|" + c.consumer, c]));
+  const sym = { pass: "", fail: "✗", missing: "?", skipped: "–" };
+  const head = `<tr><th></th>${producers.map((p) => `<th class="group" colspan="${consumers.length}">${esc(p)}</th>`).join("")}</tr>
+    <tr><th class="name axis">case (fixture.mode.key) — decrypted by →</th>${producers.map(() => consumers.map((c, i) => `<th class="sub${i === 0 ? " first" : ""}" title="${esc(c)}">${esc(short(c))}</th>`).join("")).join("")}</tr>`;
+  const body = rows.map((r) => `<tr><th class="name mono">${esc(r)}</th>${producers.map((p) => consumers.map((c, i) => {
+    const x = index.get(r + "|" + p + "|" + c);
+    return `<td class="${i === 0 ? "first" : ""}">${x ? `<button class="sq ${x.status}" title="${esc(x.title + " — " + x.status + (x.ms != null ? " (" + x.ms + " ms)" : ""))}" data-explore='${esc(JSON.stringify({ q: x.id }))}'>${sym[x.status]}</button>` : `<span class="sq none"></span>`}</td>`;
+  }).join("")).join("")}</tr>`).join("");
+  return `<section id="grid"><h2>Case grid</h2>
+    <p class="muted small">One row per case, one square per producer → consumer pair (grouped by who encrypted). A red <b>row</b> points at a fixture, a red <b>column group</b> at a producer, the same red <b>column in every group</b> at a consumer. Uses the key and mode filters above.</p>
+    <div class="legend"><span><i class="sq pass"></i>pass</span><span><i class="sq fail">✗</i>fail</span><span><i class="sq missing">?</i>missing</span>${consumers.map((c) => `<span><b>${esc(short(c))}</b> = ${esc(c)}</span>`).join("")}</div>
+    <div class="scroll"><table class="grid">${head}${body}</table></div></section>`;
+}
+
+function pivot(list, rowFn, colFn, makeFilter, cellText) {
+  const rows = uniq(list.map(rowFn)), cols = uniq(list.map(colFn));
+  return `<div class="scroll"><table class="matrix"><tr><th></th>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>${rows.map((r) =>
+    `<tr><th class="row">${esc(r)}</th>${cols.map((c) => {
+      const cell = list.filter((x) => rowFn(x) === r && colFn(x) === c);
+      const t = tally(cell);
+      const text = t.total === 0 ? "–" : cellText ? cellText(cell, t) : (t.fail + t.missing ? "✗ " : "✓ ") + t.pass + "/" + t.total;
+      return `<td class="pad0"><button class="cell ${cls(t)}" ${t.total ? `data-explore='${esc(JSON.stringify(makeFilter(cell)))}'` : "disabled"}>${esc(text)}</button></td>`;
+    }).join("")}</tr>`).join("")}</table></div>`;
+}
+
+function suites() {
+  const checks = run().checks;
+  const of = (s) => checks.filter((c) => c.suite === s);
+  const one = (cell, t) => (cell.length === 1 ? (cell[0].status === "pass" ? "✓" : "✗ " + cell[0].status) : (t.fail + t.missing ? "✗ " : "✓ ") + t.pass + "/" + t.total);
+  let html = `<section id="suites"><h2>Other suites</h2>`;
+
+  const unit = of("unit");
+  html += `<h3>Unit tests of each implementation</h3>${unit.length ? `<table>${unit.map((c) => `<tr><td><span class="badge ${c.status}">${c.status}</span></td><td><code>${esc(c.case)}</code></td><td class="muted">${fmtMs(c.ms)}</td><td><button class="linkbtn" data-explore='${esc(JSON.stringify({ q: c.id }))}'>output</button></td></tr>`).join("")}</table>` : `<p class="muted small">not part of this run</p>`}`;
+
+  const vec = of("vectors");
+  if (vec.length) {
+    html += `<h3>Known-answer vectors</h3><p class="muted small">Committed files in <code>tests/vectors/</code>. Each implementation must decrypt them, and re-encrypting the plaintext with the vector's own header must reproduce the file byte for byte. <code>inspect</code> output must be identical everywhere.</p>`
+      + pivot(vec, (c) => c.case + " · " + c.mode, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one);
+  }
+  const neg = of("negative");
+  if (neg.length) {
+    html += `<h3>Negative tests</h3><p class="muted small">Each must be refused with exactly this error kind (CLI exit code: USAGE 1, AUTH 2, MALFORMED 3, ENV 4).</p>`
+      + pivot(neg, (c) => c.case + " → " + c.mode, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one);
+  }
+  const rekey = of("rekey");
+  if (rekey.length) {
+    const chains = rekey.filter((c) => c.id.startsWith("rekey."));
+    html += `<h3>Rekey: A encrypts → B rekeys → C decrypts</h3><p class="muted small">One table per rekeying participant B. Each cell counts both modes: rotate (new data key) and rewrap-only (body must stay byte-identical).</p><div class="cols2">`
+      + uniq(chains.map((c) => c.via)).map((via) => `<div><div class="small"><b>rekeyed by ${esc(via)}</b> <span class="muted">(rows: encrypted by, columns: decrypted by)</span></div>${pivot(chains.filter((c) => c.via === via), (c) => c.producer, (c) => c.consumer, (cell) => ({ suite: "rekey", via, producer: cell[0].producer, consumer: cell[0].consumer }))}</div>`).join("") + `</div>`;
+    const extra = rekey.filter((c) => !c.id.startsWith("rekey."));
+    html += `<p class="small" style="margin-top:12px">Also per (A, B) pair: the old password is rejected afterwards, and the key type can be switched (password → ssh, ssh → password).</p>`
+      + pivot(extra, (c) => c.mode + " · " + c.key, (c) => "rekeyed by " + c.via, (cell) => ({ suite: "rekey", via: cell[0].via, q: cell[0].id.split(".").slice(0, 2).join(".") }));
+  }
+  const diff = of("diff");
+  if (diff.length) {
+    html += `<h3>Diff stability</h3><p class="muted small">Row participant encrypts a file; one plaintext line is changed; column participant re-encrypts using the first file as <code>--previous</code>. Exactly one encrypted line may differ, and the row participant must decrypt the result.</p>`
+      + pivot(diff, (c) => c.producer, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one);
+  }
+  return html + `</section>`;
+}
+
+function timings() {
+  const checks = run().checks, parts = run().meta.participants ?? [];
+  const textFx = new Set((run().meta.fixtures ?? []).filter((f) => f.bytes < 4096).map((f) => f.name));
+  const ms = (list) => median(list.filter((c) => c.status === "pass" && c.ms != null).map((c) => c.ms));
+  const cols = [
+    ["encrypt, small text (lines)", (id) => ms(checks.filter((c) => c.suite === "encrypt" && c.producer === id && c.mode === "lines-ws1" && c.key === "password" && textFx.has(c.fixture)))],
+    ["decrypt, small text (lines)", (id) => ms(checks.filter((c) => c.suite === "cross" && c.consumer === id && c.mode === "lines-ws1" && c.key === "password" && textFx.has(c.fixture)))],
+    ["encrypt, 1 MiB blob", (id) => ms(checks.filter((c) => c.suite === "encrypt" && c.producer === id && c.fixture === "bin-1MiB"))],
+    ["decrypt, 1 MiB blob", (id) => ms(checks.filter((c) => c.suite === "cross" && c.consumer === id && c.fixture === "bin-1MiB"))],
+    ["decrypt, ssh key", (id) => ms(checks.filter((c) => c.suite === "cross" && c.consumer === id && /^ssh-/.test(c.key) && c.mode === "lines-ws1"))],
+  ];
+  if (!parts.length) return "";
+  const vals = cols.map(([, fn]) => parts.map((p) => fn(p.id)));
+  return `<section id="timings"><h2>Timings</h2>
+    <p class="muted small">Median wall-clock time of one operation, including process start for the CLI participants and the cheap test Argon2id setting (8 MiB, 1 pass). Measured while other checks run in parallel, so treat it as an order of magnitude, not a benchmark.</p>
+    <div class="scroll"><table><tr><th>participant</th>${cols.map(([l]) => `<th colspan="2">${esc(l)}</th>`).join("")}</tr>${parts.map((p, i) =>
+      `<tr><td><b>${esc(p.id)}</b></td>${cols.map((_, j) => { const v = vals[j][i], max = Math.max(...vals[j].map((x) => x ?? 0), 1); return `<td style="text-align:right;white-space:nowrap">${fmtMs(v)}</td><td style="width:90px;vertical-align:middle"><div class="bar" style="width:${v == null ? 0 : Math.max(2, Math.round((v / max) * 80))}px"></div></td>`; }).join("")}</tr>`).join("")}</table></div></section>`;
+}
+
+function explorerFilter(c) {
+  if (state.suite && c.suite !== state.suite) return false;
+  if (state.producer && c.producer !== state.producer) return false;
+  if (state.consumer && c.consumer !== state.consumer) return false;
+  if (state.via && c.via !== state.via) return false;
+  if (state.status === "bad" ? !isBad(c) : state.status && c.status !== state.status) return false;
+  if (state.suite === "cross" || !state.suite) {
+    if (state.key && c.suite === "cross" && c.key !== state.key) return false;
+    if (state.mode && c.suite === "cross" && c.mode !== state.mode) return false;
+  }
+  if (state.q) {
+    const hay = (c.id + " " + c.title + " " + (c.detail ?? "")).toLowerCase();
+    for (const word of state.q.toLowerCase().split(/\s+/)) if (word && !hay.includes(word)) return false;
+  }
+  return true;
+}
+
+function explorer() {
+  const checks = run().checks, list = checks.filter(explorerFilter);
+  const limit = Number(state.limit), shown = list.slice(0, limit), t = tally(list);
+  const sel = (key, label, values) => `<label class="small muted">${label} <select data-key="${key}"><option value="">all</option>${values.map((v) => `<option value="${esc(Array.isArray(v) ? v[0] : v)}" ${state[key] === (Array.isArray(v) ? v[0] : v) ? "selected" : ""}>${esc(Array.isArray(v) ? v[1] : v)}</option>`).join("")}</select></label>`;
+  const active = Object.keys(DEFAULTS).filter((k) => !["os", "limit"].includes(k) && state[k]);
+  return `<section id="explorer"><h2>All checks</h2>
+    <div class="chips">
+      <input type="search" id="q" placeholder="search id, title or error text…" value="${esc(state.q)}">
+      ${sel("suite", "suite", SUITES.filter(([s]) => checks.some((c) => c.suite === s)))}
+      ${sel("status", "status", [["bad", "failed or missing"], "pass", "fail", "missing", "skipped"])}
+      ${sel("producer", "encrypted by", uniq(checks.map((c) => c.producer).filter(Boolean)))}
+      ${sel("via", "rekeyed by", uniq(checks.map((c) => c.via).filter(Boolean)))}
+      ${sel("consumer", "decrypted / run by", uniq(checks.map((c) => c.consumer).filter(Boolean)))}
+      ${active.length ? `<button class="chip" id="reset">✕ clear filters</button>` : ""}
+    </div>
+    <div class="small muted">${list.length} of ${checks.length} checks · ${t.pass} passed · ${t.fail} failed · ${t.missing} missing${state.key || state.mode ? ` · matrix filters applied to the cross suite: ${esc([state.key, state.mode].filter(Boolean).join(", "))}` : ""} · this view is in the URL, so it can be shared</div>
+    <div class="scroll"><table class="explorer"><tr><th>status</th><th>check</th><th>encrypted by</th><th>decrypted / run by</th><th>time</th></tr>${shown.map((c) =>
+      `<tr><td><span class="badge ${c.status}">${c.status}</span></td><td class="t">${esc(c.title)}<div class="muted mono">${esc(c.id)}</div>${c.expected ? `<div class="small">expected <code>${esc(c.expected)}</code> · got <code>${esc(c.actual)}</code></div>` : ""}${c.detail && (isBad(c) || state.q === c.id || c.suite === "unit" || c.suite === "negative") ? `<pre>${esc(c.detail)}</pre>` : ""}${c.artifact ? `<div class="small"><a href="${esc(c.artifact)}">encrypted file</a></div>` : ""}</td><td>${esc(c.producer ?? "")}${c.via ? `<div class="muted small">rekeyed by ${esc(c.via)}</div>` : ""}</td><td>${esc(c.consumer ?? "")}</td><td style="white-space:nowrap;text-align:right">${fmtMs(c.ms)}</td></tr>`).join("")}</table></div>
+    ${list.length > shown.length ? `<p><button class="linkbtn" data-set='${esc(JSON.stringify({ limit: String(limit * 4) }))}'>show more (${list.length - shown.length} hidden)</button></p>` : ""}</section>`;
+}
+
+function about() {
+  const m = run().meta;
+  return `<section id="about"><h2>Participants &amp; environment</h2>
+    <div class="scroll"><table><tr><th>id</th><th>what runs</th><th>where</th><th>driven by</th><th>reported version</th></tr>${(m.participants ?? []).map((p) =>
+      `<tr><td><b>${esc(p.id)}</b></td><td><code>${esc(p.what)}</code></td><td>${esc(p.where)}</td><td>${esc(p.how)}</td><td class="mono">${esc(p.version)}</td></tr>`).join("")}</table></div>
+    <h3>Tool versions</h3><div class="scroll"><table>${Object.entries(m.versions ?? {}).map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(String(v).split("\n")[0])}</td></tr>`).join("")}</table></div>
+    <h3>Fixtures</h3><div class="scroll"><table><tr><th>name</th><th>bytes</th><th>what it is</th></tr>${(m.fixtures ?? []).map((f) => `<tr><td class="mono">${esc(f.name)}</td><td style="text-align:right">${f.bytes}</td><td>${esc(f.about)}</td></tr>`).join("")}</table></div>
+    <p class="small muted">Report generated ${esc(DATA.generated.replace("T", " ").slice(0, 16))} UTC.</p></section>`;
+}
+
+function render() {
+  const keepFocus = document.activeElement?.id === "q";
+  const caret = keepFocus ? document.activeElement.selectionStart : 0;
+  $("#app").innerHTML = header() + matrix() + failures() + grid() + suites() + timings() + explorer() + about();
+  if (keepFocus) { const q = $("#q"); q.focus(); q.setSelectionRange(caret, caret); }
+}
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-set],[data-explore],#reset,#theme");
+  if (!el) return;
+  if (el.id === "theme") {
+    const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("ssenc-theme", document.documentElement.dataset.theme); } catch {}
+  } else if (el.id === "reset") set({ ...DEFAULTS, os: state.os });
+  else if (el.dataset.explore) explore(JSON.parse(el.dataset.explore));
+  else set(JSON.parse(el.dataset.set));
+});
+document.addEventListener("change", (e) => { if (e.target.matches("select[data-key]")) set({ [e.target.dataset.key]: e.target.value, limit: DEFAULTS.limit }); });
+let typing;
+document.addEventListener("input", (e) => { if (e.target.id === "q") { clearTimeout(typing); const v = e.target.value; typing = setTimeout(() => set({ q: v, limit: DEFAULTS.limit }), 180); } });
+addEventListener("hashchange", () => { readHash(); render(); });
+try { const t = localStorage.getItem("ssenc-theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+readHash();
+render();
+</script>
+</body>
+</html>

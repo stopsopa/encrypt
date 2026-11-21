@@ -1,0 +1,9 @@
+# config
+server:
+    host: db.internal  
+	port: 5432
+
+   
+  password: "s3cr3t ✓"	
+server:
+last line without newline

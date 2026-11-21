@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# ssenc CLI, TypeScript implementation.
+# Default: Node runs dist/cli.ts directly (native type stripping).
+# SSENC_TS_BUILD=js runs the transpiled dist/cli.js instead.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+unset NODE_OPTIONS
+if [[ "${SSENC_TS_BUILD:-ts}" == "js" ]]; then
+  exec node "$here/dist/cli.js" "$@"
+fi
+exec node --disable-warning=ExperimentalWarning "$here/dist/cli.ts" "$@"

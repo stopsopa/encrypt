@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ssenc browser test harness</title>
+</head>
+<body>
+<p>ssenc browser test harness: loads <code>ssenc.browser.js</code> and executes single
+library calls on request of the test runner. There is no test logic in this page.</p>
+<script type="module">
+import * as ssenc from "/ssenc.browser.js";
+
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const toB64 = (b) => {
+  let s = "";
+  for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+  return btoa(s);
+};
+
+// Bridged signer: the page asks the test runner (which holds the test ssh-agent) to sign.
+const signer = async (blob, data) => fromB64(await window.sshSign(toB64(blob), toB64(data)));
+
+function toKeys(spec, pubKeys, noAgent) {
+  const keys = [];
+  if (spec.password !== undefined) keys.push({ type: "password", password: spec.password });
+  for (const name of spec.ssh ?? []) {
+    keys.push(noAgent ? { type: "ssh", publicKey: pubKeys[name] } : { type: "ssh", publicKey: pubKeys[name], signer });
+  }
+  return keys;
+}
+
+window.runOp = async (op) => {
+  const t0 = performance.now();
+  try {
+    const input = fromB64(op.input);
+    let out;
+    if (op.cmd === "encrypt") {
+      const o = op.opts;
+      out = await ssenc.encrypt(input, toKeys(op.key, op.pubKeys, op.noAgent), {
+        mode: o.mode, preserveWhitespace: o.ws, pad: o.pad, chunk: o.chunk, kdf: o.kdf, seal: o.seal,
+        previous: o.previous === undefined ? undefined : fromB64(o.previous),
+      });
+    } else if (op.cmd === "decrypt") {
+      out = await ssenc.decrypt(input, toKeys(op.key, op.pubKeys, op.noAgent)[0]);
+    } else if (op.cmd === "rekey") {
+      out = await ssenc.rekey(input, toKeys(op.key, op.pubKeys)[0], toKeys(op.newKey, op.pubKeys),
+        { rotateDataKey: !op.rewrapOnly, kdf: op.kdf });
+    } else if (op.cmd === "inspect") {
+      out = JSON.stringify(ssenc.inspect(input)) + "\n";
+    } else throw new Error("unknown cmd " + op.cmd);
+    const bytes = typeof out === "string" ? new TextEncoder().encode(out) : out;
+    return { kind: "OK", output: toB64(bytes), stderr: "", ms: performance.now() - t0 };
+  } catch (e) {
+    const kind = e instanceof ssenc.SsencError ? e.kind : "CRASH";
+    return { kind, output: "", stderr: (kind === "CRASH" ? String(e && e.stack || e) : "ssenc: " + kind + ": " + e.message), ms: performance.now() - t0 };
+  }
+};
+window.ssencBuild = ssenc.BUILD + " " + ssenc.VERSION;
+window.ssencReady = true;
+</script>
+</body>
+</html>

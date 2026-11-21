@@ -1,0 +1,140 @@
+# Builds the three implementations, runs every test suite (unit tests, the cross matrix
+# including the browser through Playwright, vectors, rekey, diff stability, negative tests)
+# on Linux and macOS, and publishes one explorable report to GitHub Pages.
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      SSENC_OS_LABEL: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same Node.js version as local development: both read .tool-versions (asdf).
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
+
+      # The Bash implementation needs bash >= 4 and an openssl CLI with Argon2id (>= 3.2).
+      # macOS ships bash 3.2 and LibreSSL; Ubuntu LTS ships OpenSSL 3.0. Homebrew has
+      # current versions for both (it is preinstalled on the GitHub runners).
+      - name: bash and openssl (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash openssl@3
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+
+      - name: openssl (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install openssl@3
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xxd shellcheck openssh-client
+
+      - name: install
+        run: ./install.sh
+
+      - name: compile
+        run: ./compile.sh
+
+      - name: envverify
+        run: ./envverify.sh
+
+      - name: committed typescript/dist is up to date
+        run: git diff --exit-code -- typescript/dist
+
+      - name: test
+        run: ./test.sh
+
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.os }}
+          if-no-files-found: warn
+          path: |
+            tests/out/meta.json
+            tests/out/checks.json
+            tests/out/results.jsonl
+            tests/out/artifacts/
+
+  report:
+    name: build report
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: results
+      - name: build the report (one page, all operating systems)
+        run: |
+          args=()
+          for os in ubuntu-latest macos-latest; do
+            mkdir -p "results/results-$os"   # a job that produced nothing shows up as a broken run
+            args+=(--input "results/results-$os")
+          done
+          node --disable-warning=ExperimentalWarning tests/report/build.ts "${args[@]}" --output site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: site
+          include-hidden-files: true
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: site
+
+  # The page always shows the true state of main, also when tests failed
+  # (the workflow run itself still ends red because of the test job).
+  deploy:
+    name: publish to GitHub Pages
+    needs: report
+    if: always() && needs.report.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

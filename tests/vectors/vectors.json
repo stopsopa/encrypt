@@ -1,0 +1,68 @@
+[
+  {
+    "name": "lines-default",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "lines-ws0-pad0-seal",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "lines-pad1-multislot",
+    "key": {
+      "password": "pässwörd ✓"
+    }
+  },
+  {
+    "name": "lines-empty",
+    "key": {
+      "password": "x"
+    }
+  },
+  {
+    "name": "lines-binary",
+    "key": {
+      "password": "x"
+    }
+  },
+  {
+    "name": "lines-ssh-ed25519",
+    "key": {
+      "ssh": "test_ed25519"
+    }
+  },
+  {
+    "name": "lines-kdf-default",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "blob-small-chunks",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "blob-partial-chunk",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "blob-empty",
+    "key": {
+      "password": "hunter2"
+    }
+  },
+  {
+    "name": "blob-ssh-rsa",
+    "key": {
+      "ssh": "test_rsa"
+    }
+  }
+]

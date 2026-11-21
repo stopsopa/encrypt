@@ -1,0 +1,2 @@
+#ssenc1 lines ws=1 pad=16
+#slot pw argon2id m=8192,t=1,p=1 W09LqkNOMFUuNdE-QDsLUA 6EGhXAsd85DWsdvlf9VSOlESqCL-06TSely_Ud-vcC94KvGiWZY6jmW5J_4vkbh7

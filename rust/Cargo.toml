@@ -1,0 +1,36 @@
+[package]
+name = "ssenc"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+description = "ssenc1: line-oriented, diff-friendly file encryption with password and ssh-agent keys"
+license = "MIT"
+publish = false
+
+[lib]
+name = "ssenc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ssenc"
+path = "src/main.rs"
+
+[dependencies]
+aes = "0.9"
+ctr = "0.10"
+hmac = "0.13"
+sha2 = "0.11"
+argon2 = { version = "0.6", default-features = false, features = ["alloc"] }
+subtle = "2.6"
+zeroize = "1.8"
+getrandom = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,25 @@
+# --- test output (everything the test run generates: fixtures, encrypted artifacts,
+#     results, the HTML report) ---------------------------------------------------------
+/tests/out/
+/tests/test-results/
+/tests/playwright-report/
+/tests/blob-report/
+/tests/.cache/
+
+# --- dependencies ----------------------------------------------------------------------
+node_modules/
+
+# --- build output ----------------------------------------------------------------------
+# rust: compiled binary and intermediates
+/rust/target/
+# typescript: dist/ IS committed on purpose (the single-file libraries are the deliverable)
+
+# --- throwaway ssh-agent of the tests, temp files --------------------------------------
+/tmp/
+*.tmp
+*.log
+.DS_Store
+
+# --- never commit real secrets ---------------------------------------------------------
+.env
+.env.*

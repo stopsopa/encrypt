@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# ssenc CLI, Rust implementation: runs the release binary built by rust/compile.sh.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bin="$here/target/release/ssenc"
+if [[ ! -x "$bin" ]]; then
+  echo "ssenc: ENV: $bin not found: build it first with $here/compile.sh" >&2
+  exit 4
+fi
+exec "$bin" "$@"
