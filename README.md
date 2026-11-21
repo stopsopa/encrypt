@@ -1,10 +1,19 @@
 # ssenc
 
-**Live pages:** [Encryptor — encrypt a message in the browser](https://stopsopa.github.io/encrypt/encryptor/) ·
-[Test report — every implementation decrypting every other](https://stopsopa.github.io/encrypt/)
+## Live pages
 
-**Documentation:** [Command line](docs/cli.md) · [TypeScript / JavaScript library](docs/typescript.md) ·
-[Rust library](docs/rust.md) · [Format specification](SPEC.md) · [Design and rationale](PLAN.md)
+- [Encryptor](https://stopsopa.github.io/encrypt/encryptor/) — type a message and a key in the browser, get a shareable link that holds only the encrypted text
+- [Test report](https://stopsopa.github.io/encrypt/) — every implementation decrypting what every other one encrypted, rebuilt on each push
+
+## Documentation
+
+- [Command line](docs/cli.md) — the `ssenc` command, identical in all implementations
+- [TypeScript / JavaScript library](docs/typescript.md) — single-file modules for Node.js and the browser
+- [Rust library](docs/rust.md) — the `ssenc` crate and binary
+- [Format specification](SPEC.md) — the exact bytes of an encrypted file
+- [Design and rationale](PLAN.md) — why it is built this way
+
+## About
 
 Password / ssh-agent encryption of text and binary files into **diff-friendly ASCII text**,
 with three interoperable implementations: **TypeScript**, **Rust** and **Bash**.
