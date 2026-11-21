@@ -501,7 +501,11 @@ produce a green report. `tests/run.sh` exits non-zero if anything is `fail` or `
 ### 8.7 Report
 
 One static, self-contained `index.html` (data embedded, no framework, also opens from
-`file://` after a local run). Top to bottom:
+`file://` after a local run). It is meant to be explored, not just read: every number is
+clickable down to the individual check, filters combine (OS · suite · key · mode ·
+producer · consumer · status), a search box finds a case by name, and the current filter
+state is kept in the URL so a specific view or failure can be linked. Light and dark
+theme, usable on a phone. Top to bottom:
 
 **1. Run header** — commit, branch, date, link to the CI run, OS, versions of node, rustc,
 bash, openssl, OpenSSH and the browser, and totals.
@@ -549,7 +553,15 @@ the Bash and browser implementations stay visible.
 
 ### 8.8 CI and GitHub Pages
 
-`.github/workflows/test.yml`, on every push and pull request:
+**GitHub Actions is where the tests officially run.** Every suite in this plan runs
+there on every push and pull request — per-language unit tests, vectors, both encrypt
+stages (server and Playwright), the all×all decrypt stage, rekey, diff stability and
+negative tests — and all of them land in the same published report. Per-language unit test
+results (`cargo test`, `node --test`, bash) are converted to the same result records, so
+the page is the single place to see everything. Running locally with `./test.sh` is the
+same pipeline and produces the same page under `tests/out/report/`.
+
+`.github/workflows/test.yml`:
 
 1. `test` job, matrix over `ubuntu-latest` and `macos-latest` (Windows added in M7):
    `install.sh` → `envverify.sh` → `compile.sh` → `tests/run.sh`. Uploads `tests/out/` as
@@ -650,11 +662,11 @@ pure-TypeScript implementation (expected a few seconds at 64 MiB).
    rewrap only (one-line diff, but an old password plus an old clone still reads new commits).
 5. **Git integration** (clean/smudge filter or a `git ssenc` helper) is out of scope for
    this plan; the `--previous` mechanism is designed so it can be added later.
+6. **Bash as pure Bash + openssl** (proposed, with the two limitations in 7.3) vs. allowing
+   it to call a small helper binary, which would remove both limitations but make it less
+   of an independent implementation.
 7. **Browsers in the matrix**: Chromium only (proposed) vs. also Firefox and WebKit as
    extra participants. Each has its own WebCrypto implementation, so it is real coverage,
    at the cost of a 7×7 matrix and a longer run.
 8. **Cross-OS decrypt** (artifacts encrypted on macOS decrypted on Linux and the reverse):
    not in the plan; possible later because artifacts are already uploaded as files.
-6. **Bash as pure Bash + openssl** (proposed, with the two limitations in 7.3) vs. allowing
-   it to call a small helper binary, which would remove both limitations but make it less
-   of an independent implementation.
