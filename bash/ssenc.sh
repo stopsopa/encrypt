@@ -463,7 +463,8 @@ _ssenc_line_text() {
 }
 
 _ssenc_field() { # B64URL BYTES WHAT -> _HEX
-  # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
+  # deliberate: any failed check falls through to the error
+  # shellcheck disable=SC2015
   _ssenc_b64d "$1" && ((${#_HEX} == $2 * 2)) || _ssenc_die MALFORMED "invalid $3 in header"
 }
 
@@ -698,7 +699,8 @@ _ssenc_ssh_kek() {
   _ssenc_ssh_string "$sig" 0 || _ssenc_die ENV "ssh signer returned an unexpected signature (need $expected)"
   _ssenc_hex2text "$_STR"
   alg_end=$_NEXT
-  # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
+  # deliberate: any failed check falls through to the error
+  # shellcheck disable=SC2015
   [[ $_TEXT == "$expected" ]] && _ssenc_ssh_string "$sig" "$alg_end" && ((_NEXT == ${#sig})) ||
     _ssenc_die ENV "ssh signer returned an unexpected signature (need $expected)"
   _ssenc_hkdf "$sig" "$salt" "ssenc1/ssh-kek"
@@ -1189,7 +1191,8 @@ _ssenc_ssh_key_arg() {
 
 _ssenc_read_input() { # [PATH] -> $_T/in
   if [[ -n ${1+x} ]]; then
-    # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
+    # deliberate: any failed check falls through to the error
+    # shellcheck disable=SC2015
     [[ -r $1 && ! -d $1 ]] && cat -- "$1" >"$_T/in" 2>/dev/null || _ssenc_die USAGE "cannot read input: $1"
   else
     cat >"$_T/in" || _ssenc_die USAGE "cannot read input"
@@ -1309,7 +1312,8 @@ _ssenc_op() {
     encrypt)
       local have_prev=0 auto_prev=0
       if ((have_previous)); then
-        # shellcheck disable=SC2015  # deliberate: any failed check falls through to the error
+        # deliberate: any failed check falls through to the error
+        # shellcheck disable=SC2015
         [[ -r $previous && ! -d $previous ]] && cat -- "$previous" >"$_T/prev" 2>/dev/null ||
           _ssenc_die USAGE "cannot read --previous file: $previous"
         have_prev=1

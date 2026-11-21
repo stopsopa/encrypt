@@ -10,7 +10,8 @@
 #     CHECK_OPTIONAL[] the same for [WARN] items
 
 CHECK_PROBLEMS=0
-# shellcheck disable=SC2034  # read by the scripts that source this file (install.sh)
+# read by the scripts that source this file (install.sh)
+# shellcheck disable=SC2034
 CHECK_FIXES=()
 # shellcheck disable=SC2034
 CHECK_OPTIONAL=()
@@ -26,7 +27,8 @@ pkg_cmd() {
 }
 
 _check_add() { # ARRAYNAME VALUE - append unless already there
-  # shellcheck disable=SC2034  # value and cur are used inside the eval below
+  # value and cur are used inside the eval below
+  # shellcheck disable=SC2034
   local name=$1 value=$2 cur
   eval "for cur in \"\${${name}[@]-}\"; do [[ \$cur == \"\$value\" ]] && return 0; done"
   eval "${name}+=(\"\$value\")"
@@ -63,7 +65,8 @@ check_bash() {
 
 check_openssl() {
   local fix path ver out detail zero64 zero32
-  # shellcheck disable=SC2016  # the fix text is shown to the user, not expanded here
+  # the fix text is shown to the user, not expanded here
+  # shellcheck disable=SC2016
   fix=$(pkg_cmd 'brew install openssl@3 && export PATH="$(brew --prefix openssl@3)/bin:$PATH"' \
     'sudo apt-get install -y openssl     (only on releases that ship OpenSSL >= 3.2: Ubuntu 25.04+, Debian 13+; older ones need a newer openssl first in PATH)')
   if ! path=$(command -v openssl 2>/dev/null) || [[ -z $path ]]; then

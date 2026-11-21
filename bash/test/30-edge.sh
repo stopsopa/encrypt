@@ -2,7 +2,8 @@
 # Round trips and edge cases: line splitting, whitespace, padding, blob chunking,
 # deterministic re-encryption, rekey, tampering, exit codes, CLI behaviour.
 # shellcheck source=helpers.bash
-# shellcheck disable=SC2119  # ssenc_* functions read stdin; calling them without arguments is intended
+# ssenc_* functions read stdin; calling them without arguments is intended
+# shellcheck disable=SC2119
 source "$(dirname "${BASH_SOURCE[0]}")/helpers.bash"
 
 export SSENC_PASSWORD="edge case password"
