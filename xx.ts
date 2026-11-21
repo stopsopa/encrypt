@@ -24,7 +24,7 @@ export default (setup: Record<string, Command>) => {
   add("envverify", "envverify.sh", "check that all tools needed to compile and test are present (all parts)");
   add("install", "install.sh", "install dependencies of all parts");
   add("compile", "compile.sh", "compile all implementations");
-  add("test", "test.sh", "run ALL tests: unit tests + cross matrix incl. browser, then build the report. Args: --only rust,bash,node-ts,node-js,browser-js  --skip-unit  --suite cross,vectors,rekey,diff,negative");
+  add("test", "test.sh", "run ALL tests: unit tests + cross matrix incl. browser, then build the report. Args: --only rust,bash,node-ts,node-js,browser-js  --skip-unit  --suite cross,vectors,rekey,diff,negative  --verbose (one line per passing check)");
 
   // --- per part ---
   for (const part of PARTS) {

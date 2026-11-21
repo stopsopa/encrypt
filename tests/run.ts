@@ -10,13 +10,13 @@
 // the report can show a check that never produced a result as "missing"), out/results.jsonl
 // and out/meta.json. Exit code 0 only if every planned check passed.
 //
-//   node tests/run.ts [--only rust,node-ts,...] [--skip-unit] [--suite cross,negative,...]
+//   node tests/run.ts [--only rust,node-ts,...] [--skip-unit] [--suite cross,negative,...] [--verbose]
 import { spawn, execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
 import type { Check, Outcome, Participant } from "./lib/common.ts";
-import { OUT, ROOT, tail, timestamp, timestampConsole } from "./lib/common.ts";
+import { OUT, ROOT, tail, timestampConsole } from "./lib/common.ts";
 import { CASES } from "./lib/cases.ts";
 import { FIXTURES, writeFixtures } from "./lib/fixtures.ts";
 import { startParticipants } from "./lib/participants.ts";
@@ -33,6 +33,8 @@ const argValue = (name: string): string | undefined => {
 const only = argValue("--only")?.split(",");
 const suites = argValue("--suite")?.split(",");
 const skipUnit = argv.includes("--skip-unit");
+/** --verbose: also print one line for every check that passes (thousands of lines). */
+const verbose = argv.includes("--verbose");
 
 function sh(cmd: string, args: string[]): string {
   try {
@@ -53,52 +55,67 @@ function unitChecks(): Check[] {
       delete env.NODE_OPTIONS;
       const child = spawn(join(ROOT, dir, "test.sh"), [], { env, stdio: ["ignore", "pipe", "pipe"] });
       let out = "";
-      child.stdout.on("data", (d: Buffer) => (out += d.toString()));
-      child.stderr.on("data", (d: Buffer) => (out += d.toString()));
+      // Show the suite's own output live, line by line, exactly as it prints it.
+      let partial = "";
+      const onData = (d: Buffer): void => {
+        const text = d.toString();
+        out += text;
+        const lines = (partial + text).split("\n");
+        partial = lines.pop() ?? "";
+        for (const line of lines) console.log("    [" + lang + "] " + line.replace(/\x1b\[[0-9;]*m/g, "").replace(/\r/g, ""));
+      };
+      child.stdout.on("data", onData);
+      child.stderr.on("data", onData);
       child.on("error", (e) => resolve({ status: "fail", detail: String(e) }));
-      child.on("close", (code) => resolve({
+      child.on("close", (code) => {
+        if (partial) console.log("    [" + lang + "] " + partial);
+        resolve({
         status: code === 0 ? "pass" : "fail", ms: performance.now() - t0,
-        detail: tail(out.replace(/\x1b\[[0-9;]*m/g, ""), code === 0 ? 400 : 3000),
-      }));
+          detail: tail(out.replace(/\x1b\[[0-9;]*m/g, ""), code === 0 ? 400 : 3000),
+        });
+      });
     }),
   }));
 }
 
-async function runStage(name: string, checks: Check[], concurrency: number): Promise<{ pass: number; fail: number }> {
+let interrupted = false;
+
+async function runStage(name: string, about: string, checks: Check[], concurrency: number): Promise<{ pass: number; fail: number }> {
   const t0 = performance.now();
   let pass = 0, fail = 0, next = 0;
   const secs = (): string => ((performance.now() - t0) / 1000).toFixed(0) + " s";
-  console.log(`${name}: starting ${checks.length} checks…`);
-  // A stage can be silent for a long time (cargo test, the Bash implementation): show that
-  // it is alive. On a terminal the line is rewritten in place; in CI logs it is a line every 30 s.
-  const tty = process.stdout.isTTY;
+  console.log("");
+  console.log(`${name} — ${checks.length} checks`);
+  console.log(`  ${about}`);
+  // A stage can be silent for a long time (cargo test, the Bash implementation): report
+  // that it is alive every 10 seconds, as an ordinary line (works in any terminal and in CI).
   const progress = setInterval(() => {
-    const line = `  … ${name}: ${pass + fail}/${checks.length} done, ${fail} failed, ${secs()}`;
-    if (tty) process.stdout.write("\r\x1b[K" + timestamp() + " " + line);
-    else console.log(line);
-  }, tty ? 1000 : 30000);
-  const clearLine = (): void => {
-    if (tty) process.stdout.write("\r\x1b[K");
-  };
+    console.log(`  … ${pass + fail} of ${checks.length} done, ${fail} failed, ${secs()} elapsed`);
+  }, 10000);
   const worker = async (): Promise<void> => {
     for (;;) {
+      if (interrupted) return;
       const check = checks[next++];
       if (!check) return;
-      if (check.suite === "unit") {
-        clearLine();
-        console.log("  running " + check.case + " …");
-      }
+      if (check.suite === "unit") console.log("  running " + check.case + " …");
       let outcome: Outcome;
       try {
         outcome = await check.run();
       } catch (e) {
         outcome = { status: "fail", detail: "test runner error: " + (e instanceof Error ? e.stack : String(e)) };
       }
+      if (interrupted) return; // a result obtained while everything is being killed means nothing
       if (outcome.status === "fail") {
         fail++;
-        clearLine();
-        console.log("  FAIL " + check.id + "\n       " + (outcome.detail ?? "").split("\n").join("\n       "));
-      } else pass++;
+        console.log("  FAIL  " + check.title);
+        if (outcome.expected !== undefined) console.log("        expected: " + outcome.expected + "\n        got:      " + outcome.actual);
+        if (outcome.detail) console.log("        reason:   " + outcome.detail.split("\n").join("\n                  "));
+        console.log("        id:       " + check.id + "   (search for it in the report)");
+      } else {
+        pass++;
+        if (verbose && check.suite !== "unit") console.log("  ok    " + check.title + (outcome.ms === undefined ? "" : " (" + Math.round(outcome.ms) + " ms)"));
+        if (check.suite === "unit") console.log("  ok    " + check.case + " (" + ((outcome.ms ?? 0) / 1000).toFixed(1) + " s)");
+      }
       appendFileSync(join(OUT, "results.jsonl"), JSON.stringify({ id: check.id, ...outcome, ms: outcome.ms === undefined ? undefined : Math.round(outcome.ms) }) + "\n");
     }
   };
@@ -106,9 +123,8 @@ async function runStage(name: string, checks: Check[], concurrency: number): Pro
     await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, checks.length)) }, worker));
   } finally {
     clearInterval(progress);
-    clearLine();
   }
-  console.log(`${name}: ${pass} passed, ${fail} failed (${checks.length} checks, ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+  if (!interrupted) console.log(`  result: ${pass} passed, ${fail} failed, ${((performance.now() - t0) / 1000).toFixed(1)} s`);
   return { pass, fail };
 }
 
@@ -119,19 +135,32 @@ writeFixtures();
 const participants = await startParticipants(only);
 let exitCode = 1;
 try {
-  console.log("participants:");
-  for (const p of participants.all) console.log("  " + p.id.padEnd(11) + participants.versions[p.id]);
+  console.log("implementations taking part (each one both encrypts and decrypts):");
+  for (const p of participants.all) console.log("  " + p.id.padEnd(11) + p.what + "  [" + p.where + ", driven by " + p.how + "]  reports: " + participants.versions[p.id]);
   const broken = participants.all.filter((p) => /^(MISSING|BROKEN)/.test(participants.versions[p.id]));
   if (broken.length) console.log("WARNING: not runnable (their checks will fail): " + broken.map((p) => p.id).join(", "));
 
   const want = (s: string): boolean => !suites || suites.includes(s);
-  const stages: { name: string; checks: Check[]; concurrency: number }[] = [
-    { name: "stage 0  unit tests", checks: skipUnit || !want("unit") ? [] : unitChecks(), concurrency: 1 },
-    { name: "stage 1  server encrypt", checks: encryptChecks(participants.server), concurrency: 16 },
-    { name: "stage 2  browser encrypt", checks: encryptChecks(participants.browser), concurrency: 4 },
-    { name: "stage 3  decrypt all with all", checks: want("cross") ? crossChecks(participants.all) : [], concurrency: 24 },
+  const stages: { name: string; about: string; checks: Check[]; concurrency: number }[] = [
     {
-      name: "stage 4  vectors, rekey, diff, negative",
+      name: "STAGE 0: unit tests", checks: skipUnit || !want("unit") ? [] : unitChecks(), concurrency: 1,
+      about: "Each implementation's own test suite (rust/test.sh, bash/test.sh, typescript/test.sh), one after another.",
+    },
+    {
+      name: "STAGE 1: encrypt on the server", checks: encryptChecks(participants.server), concurrency: 16,
+      about: `Each command-line implementation (${participants.server.map((p) => p.id).join(", ")}) encrypts every test case (input file x mode x key) and the result is saved to tests/out/artifacts/<implementation>/.`,
+    },
+    {
+      name: "STAGE 2: encrypt in the browser", checks: encryptChecks(participants.browser), concurrency: 4,
+      about: "The browser build (ssenc.browser.js in headless Chromium, driven by Playwright) encrypts the same test cases; results are saved to tests/out/artifacts/browser-js/.",
+    },
+    {
+      name: "STAGE 3: decrypt everything with everything", checks: want("cross") ? crossChecks(participants.all) : [], concurrency: 24,
+      about: "Every implementation decrypts every file saved in stages 1 and 2, whoever made it. The output must be byte-identical to the original input.",
+    },
+    {
+      name: "STAGE 4: vectors, rekey, diff stability, refusals",
+      about: "Committed reference files must decrypt and re-encrypt to identical bytes; A encrypts, B changes the key, C decrypts; one changed input line must change one encrypted line; wrong keys and damaged files must be refused with the right error.",
       checks: [
         ...(want("vectors") ? [...vectorChecks(participants.all), ...inspectChecks(participants.all)] : []),
         ...(want("rekey") ? rekeyChecks(participants.all) : []),
@@ -175,13 +204,25 @@ try {
     cases: CASES.length,
   }, null, 1));
 
+  process.on("SIGINT", () => {
+    if (interrupted) return;
+    interrupted = true;
+    console.log("");
+    console.log("INTERRUPTED (Ctrl+C): stopping. Checks that were running are discarded, not counted as failures.");
+  });
   let fail = 0;
   for (const s of stages) {
-    if (s.checks.length === 0) continue;
-    fail += (await runStage(s.name, s.checks, s.concurrency)).fail;
+    if (s.checks.length === 0 || interrupted) continue;
+    fail += (await runStage(s.name, s.about, s.checks, s.concurrency)).fail;
   }
-  console.log(fail === 0 ? `ALL ${allChecks.length} CHECKS PASSED` : `${fail} of ${allChecks.length} CHECKS FAILED`);
-  exitCode = fail === 0 ? 0 : 1;
+  console.log("");
+  if (interrupted) {
+    console.log("RUN INTERRUPTED before it finished: no verdict. Run it again to get one.");
+    exitCode = 130;
+  } else {
+    console.log(fail === 0 ? `ALL ${allChecks.length} CHECKS PASSED` : `${fail} of ${allChecks.length} CHECKS FAILED`);
+    exitCode = fail === 0 ? 0 : 1;
+  }
 } finally {
   await Promise.all(participants.all.map((p) => p.close()));
 }

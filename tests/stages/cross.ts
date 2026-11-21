@@ -22,7 +22,8 @@ export function encryptChecks(producers: Participant[]): Check[] {
     mkdirSync(join(OUT, "artifacts", p.id), { recursive: true });
     for (const c of CASES) {
       checks.push({
-        id: "encrypt." + p.id + "." + c.id, suite: "encrypt", title: p.id + " encrypts " + c.id,
+        id: "encrypt." + p.id + "." + c.id, suite: "encrypt",
+        title: p.id + " encrypts input '" + c.fixture + "' (" + fixture(c.fixture).about + "), mode " + c.mode + ", key " + c.key,
         producer: p.id, case: c.id, fixture: c.fixture, mode: c.mode, key: c.key,
         run: async () => {
           const r = await p.run({ cmd: "encrypt", input: fixture(c.fixture).data, key: c.encryptKey, opts: c.opts });
@@ -51,7 +52,8 @@ export function crossChecks(all: Participant[]): Check[] {
         c.decryptKeys.forEach((dk, i) => {
           checks.push({
             id: "cross." + producer.id + "." + consumer.id + "." + c.id + (c.decryptKeys.length > 1 ? "." + i : ""),
-            suite: "cross", title: c.id + " [" + dk.label + "]: " + producer.id + " → " + consumer.id,
+            suite: "cross",
+            title: consumer.id + " decrypts a file encrypted by " + producer.id + ": input '" + c.fixture + "' (" + fixture(c.fixture).about + "), mode " + c.mode + ", key " + dk.label,
             producer: producer.id, consumer: consumer.id, case: c.id, fixture: c.fixture, mode: c.mode, key: dk.label,
             run: async () => {
               const artifact = readArtifact(producer.id, c.id);

@@ -98,7 +98,8 @@ class CliParticipant implements Participant {
           else if (existsSync(join(dir, "out"))) output = readFileSync(join(dir, "out"));
           else kind = "CRASH";
         }
-        const stderr = kind === "CRASH" && !r.stderr ? "exit code " + r.code + " without output" : r.stderr;
+        const why = r.code === 130 || r.code === 143 ? " (the process was interrupted: SIGINT/SIGTERM, e.g. Ctrl+C)" : "";
+        const stderr = kind === "CRASH" ? "unexpected exit code " + r.code + why + (r.stderr ? ": " + r.stderr : ", nothing on stderr") : r.stderr;
         return { kind, output, stderr, ms: r.ms };
       } finally {
         rmSync(dir, { recursive: true, force: true });

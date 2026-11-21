@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Entry point of the cross-implementation tests.
 #
-#   tests/run.sh [--only rust,bash,node-ts,node-js,browser-js] [--skip-unit] [--suite cross,vectors,rekey,diff,negative]
+#   tests/run.sh [--only rust,bash,node-ts,node-js,browser-js] [--skip-unit] [--suite cross,vectors,rekey,diff,negative] [--verbose]
+#
+# The unit test suites' own output is shown live. --verbose additionally prints one line for
+# every passing check of the other stages.
 #
 # 1. starts a private throwaway ssh-agent with the test keys (never touches your own agent)
 # 2. runs tests/run.ts (stages 0-4, see that file)
@@ -18,9 +21,16 @@ agent="$("$here/lib/agent.sh" start)" || { log "tests/run.sh: could not start th
 eval "$agent"
 trap '"$here/lib/agent.sh" stop' EXIT
 
+# Ctrl+C: let run.ts handle the interrupt and finish its own shutdown.
+trap ':' INT
 node --disable-warning=ExperimentalWarning "$here/run.ts" "$@"
 status=$?
 
+if [[ "$status" == 130 ]]; then
+  log "interrupted: no report built"
+  exit 130
+fi
 node --disable-warning=ExperimentalWarning "$here/report/build.ts" || status=1
-if [[ "$status" == 0 ]]; then log "tests passed"; else log "tests FAILED (exit code $status)"; fi
+log "open the report with: xx report open   (tests/out/report/index.html)"
+if [[ "$status" == 0 ]]; then log "TESTS PASSED"; else log "TESTS FAILED (exit code $status)"; fi
 exit "$status"
