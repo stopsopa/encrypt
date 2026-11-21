@@ -23,3 +23,5 @@ node_modules/
 # --- never commit real secrets ---------------------------------------------------------
 .env
 .env.*
+
+/__links/
