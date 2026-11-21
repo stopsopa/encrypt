@@ -16,12 +16,14 @@ import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
 import type { Check, Outcome, Participant } from "./lib/common.ts";
-import { OUT, ROOT, tail } from "./lib/common.ts";
+import { OUT, ROOT, tail, timestamp, timestampConsole } from "./lib/common.ts";
 import { CASES } from "./lib/cases.ts";
 import { FIXTURES, writeFixtures } from "./lib/fixtures.ts";
 import { startParticipants } from "./lib/participants.ts";
 import { crossChecks, encryptChecks } from "./stages/cross.ts";
 import { diffChecks, inspectChecks, negativeChecks, rekeyChecks, vectorChecks } from "./stages/extra.ts";
+
+timestampConsole();
 
 const argv = process.argv.slice(2);
 const argValue = (name: string): string | undefined => {
@@ -65,10 +67,27 @@ function unitChecks(): Check[] {
 async function runStage(name: string, checks: Check[], concurrency: number): Promise<{ pass: number; fail: number }> {
   const t0 = performance.now();
   let pass = 0, fail = 0, next = 0;
+  const secs = (): string => ((performance.now() - t0) / 1000).toFixed(0) + " s";
+  console.log(`${name}: starting ${checks.length} checks…`);
+  // A stage can be silent for a long time (cargo test, the Bash implementation): show that
+  // it is alive. On a terminal the line is rewritten in place; in CI logs it is a line every 30 s.
+  const tty = process.stdout.isTTY;
+  const progress = setInterval(() => {
+    const line = `  … ${name}: ${pass + fail}/${checks.length} done, ${fail} failed, ${secs()}`;
+    if (tty) process.stdout.write("\r\x1b[K" + timestamp() + " " + line);
+    else console.log(line);
+  }, tty ? 1000 : 30000);
+  const clearLine = (): void => {
+    if (tty) process.stdout.write("\r\x1b[K");
+  };
   const worker = async (): Promise<void> => {
     for (;;) {
       const check = checks[next++];
       if (!check) return;
+      if (check.suite === "unit") {
+        clearLine();
+        console.log("  running " + check.case + " …");
+      }
       let outcome: Outcome;
       try {
         outcome = await check.run();
@@ -77,12 +96,18 @@ async function runStage(name: string, checks: Check[], concurrency: number): Pro
       }
       if (outcome.status === "fail") {
         fail++;
+        clearLine();
         console.log("  FAIL " + check.id + "\n       " + (outcome.detail ?? "").split("\n").join("\n       "));
       } else pass++;
       appendFileSync(join(OUT, "results.jsonl"), JSON.stringify({ id: check.id, ...outcome, ms: outcome.ms === undefined ? undefined : Math.round(outcome.ms) }) + "\n");
     }
   };
-  await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, checks.length)) }, worker));
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, checks.length)) }, worker));
+  } finally {
+    clearInterval(progress);
+    clearLine();
+  }
   console.log(`${name}: ${pass} passed, ${fail} failed (${checks.length} checks, ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
   return { pass, fail };
 }

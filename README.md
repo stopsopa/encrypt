@@ -19,6 +19,9 @@ server:                     #ssenc1 lines ws=1 pad=16
 - Format specification: [SPEC.md](SPEC.md) · design and rationale: [PLAN.md](PLAN.md)
 - Test report (every implementation decrypting every other one, including a browser):
   <https://stopsopa.github.io/encrypt/>
+- Encryptor page — type a message and a key, get a shareable link that holds only the
+  encrypted text: <https://stopsopa.github.io/encrypt/encryptor/> (source in [`encryptor/`](encryptor);
+  locally: `xx encryptor serve`)
 
 ## What it does
 

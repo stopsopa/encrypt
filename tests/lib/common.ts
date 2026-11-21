@@ -103,3 +103,20 @@ export function expectKind(r: OpResult, kind: ResultKind): Outcome {
   if (r.kind === kind) return { status: "pass", ms: r.ms, detail: r.kind === "OK" ? "" : tail(r.stderr, 200) };
   return { status: "fail", ms: r.ms, expected: kind, actual: r.kind, detail: "expected " + kind + ", got " + r.kind + (r.stderr ? ": " + tail(r.stderr) : "") };
 }
+
+/** Local time as YYYY-MM-DD HH:ii:ss. */
+export function timestamp(d = new Date()): string {
+  const p = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** Makes console.log / console.error prefix every line they print with a timestamp. */
+export function timestampConsole(): void {
+  for (const name of ["log", "error"] as const) {
+    const original = console[name].bind(console);
+    console[name] = (...args: unknown[]): void => {
+      const text = args.map((a) => (typeof a === "string" ? a : a instanceof Error ? a.stack ?? String(a) : JSON.stringify(a))).join(" ");
+      original(text.split("\n").map((line) => timestamp() + " " + line).join("\n"));
+    };
+  }
+}

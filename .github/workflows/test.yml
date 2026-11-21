@@ -112,6 +112,11 @@ jobs:
             args+=(--input "results/results-$os")
           done
           node --disable-warning=ExperimentalWarning tests/report/build.ts "${args[@]}" --output site
+      - name: add the encryptor page (uses the browser build of the library)
+        run: |
+          mkdir -p site/encryptor site/typescript/dist
+          cp encryptor/* site/encryptor/
+          cp typescript/dist/ssenc.browser.js site/typescript/dist/
       - uses: actions/upload-artifact@v4
         with:
           name: report

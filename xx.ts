@@ -60,6 +60,17 @@ if command -v open >/dev/null 2>&1; then open tests/out/report/index.html; else 
     confirm: false,
     order: order++,
   };
+  commands["encryptor serve"] = {
+    command: `
+set -e
+PORT="\${1:-8080}"
+echo "encryptor page: http://127.0.0.1:\${PORT}/encryptor/   (Ctrl+C to stop)"
+python3 -m http.server "\${PORT}" --bind 127.0.0.1
+`,
+    description: "serve the encryptor page locally (it needs http, not file://). Optional argument: port, default 8080  [encryptor/index.html]",
+    confirm: false,
+    order: order++,
+  };
   commands["vectors regenerate"] = {
     command: `
 set -e

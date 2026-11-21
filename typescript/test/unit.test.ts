@@ -147,3 +147,23 @@ test("browser build: ssh key without a signer is an ENV error; with a signer it 
   const wrongAlg = async (): Promise<Uint8Array> => new Uint8Array([...str(new TextEncoder().encode("ssh-rsa")), ...str(new Uint8Array(64))]);
   await assert.rejects(browserTs.encrypt("x", { type: "ssh", publicKey: pub, signer: wrongAlg }), { kind: "ENV" });
 });
+
+test("kdf cache: same results, second derivation is skipped", async () => {
+  const key = { type: "password" as const, password: "pw" };
+  const enc = await nodeTs.encrypt("a\nb\n", key, { kdf: "m=32768,t=2,p=1" });
+  const t0 = performance.now();
+  await nodeTs.decrypt(enc, key);
+  const cold = performance.now() - t0;
+  nodeTs.setKdfCacheSize(4);
+  try {
+    assert.equal(await nodeTs.decryptToString(enc, key), "a\nb\n");
+    const t1 = performance.now();
+    assert.equal(await nodeTs.decryptToString(enc, key), "a\nb\n");
+    assert.equal(await nodeTs.encrypt("a\nb\n", key, { previous: enc }), enc);
+    const warm = (performance.now() - t1) / 2;
+    assert.ok(warm < cold / 3, `cached ${warm.toFixed(1)} ms vs ${cold.toFixed(1)} ms`);
+    await assert.rejects(nodeTs.decrypt(enc, { type: "password", password: "other" }), { kind: "AUTH" });
+  } finally {
+    nodeTs.setKdfCacheSize(0);
+  }
+});

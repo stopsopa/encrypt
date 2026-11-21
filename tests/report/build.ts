@@ -10,6 +10,9 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { timestampConsole } from "../lib/common.ts";
+
+timestampConsole();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);

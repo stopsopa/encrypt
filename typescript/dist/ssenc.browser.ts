@@ -811,6 +811,32 @@ function passwordBytes(key: PasswordKey): Bytes {
   return pw;
 }
 
+// Optional in-memory cache of Argon2id results. Off by default. An interactive page that
+// re-encrypts on every keystroke would otherwise pay the full Argon2id cost each time.
+// While enabled, derived keys stay in memory for as long as they are cached.
+let kdfCacheSize = 0;
+const kdfCache = new Map<string, Bytes>();
+
+/** Keeps up to `entries` Argon2id results in memory (0, the default, disables and clears the cache). */
+function setKdfCacheSize(entries: number): void {
+  kdfCacheSize = Math.max(0, Math.floor(entries));
+  while (kdfCache.size > kdfCacheSize) kdfCache.delete(kdfCache.keys().next().value as string);
+}
+
+async function passwordKek(pw: Uint8Array, salt: Uint8Array, m: number, t: number, p: number): Promise<Bytes> {
+  if (kdfCacheSize === 0) return argon2id(pw, salt, m, t, p, 32);
+  const id = b64urlEncode(await sha256(concatBytes(u64be(pw.length), pw, u64be(salt.length), salt, utf8(m + "," + t + "," + p))));
+  let kek = kdfCache.get(id);
+  if (kek) {
+    kdfCache.delete(id);
+  } else {
+    kek = argon2id(pw, salt, m, t, p, 32);
+    if (kdfCache.size >= kdfCacheSize) kdfCache.delete(kdfCache.keys().next().value as string);
+  }
+  kdfCache.set(id, kek);
+  return kek;
+}
+
 type ResolvedSsh = { blob: Bytes; keyType: string; fingerprint: string; signer: SshSigner };
 
 async function resolveSsh(key: SshKey): Promise<ResolvedSsh> {
@@ -834,7 +860,7 @@ async function makeSlots(keys: Key[], dek: Uint8Array, kdf: KdfParams): Promise<
   for (const key of keys) {
     if (key.type !== "password") continue;
     const salt = randomBytes(16);
-    const kek = argon2id(passwordBytes(key), salt, kdf.m, kdf.t, kdf.p, 32);
+    const kek = await passwordKek(passwordBytes(key), salt, kdf.m, kdf.t, kdf.p);
     lines.push(slotLine({ type: "pw", m: kdf.m, t: kdf.t, p: kdf.p, salt, wrapped: await wrapDek(kek, dek) }));
   }
   for (const key of keys) {
@@ -862,7 +888,7 @@ async function openWith(file: ParsedFile, key: Key): Promise<Bytes | null> {
     const pw = passwordBytes(key);
     for (const slot of file.slots) {
       if (slot.type !== "pw") continue;
-      const dek = await tryUnwrap(argon2id(pw, slot.salt, slot.m, slot.t, slot.p, 32), slot);
+      const dek = await tryUnwrap(await passwordKek(pw, slot.salt, slot.m, slot.t, slot.p), slot);
       if (dek) return dek;
     }
     return null;
@@ -1132,7 +1158,7 @@ const VERSION = "0.1.0";
 // public API
 // ---------------------------------------------------------------------------------------
 
-export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, VERSION, BUILD };
+export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, setKdfCacheSize, VERSION, BUILD };
 export { sshParsePublicKey, sshFingerprint, sshKeyType };
 export type { SsencErrorKind, Key, PasswordKey, SshKey, SshSigner, EncryptOptions, RekeyOptions, InspectResult, SlotInfo, KdfParams };
 

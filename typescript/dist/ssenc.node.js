@@ -812,6 +812,33 @@ function passwordBytes(key) {
         throw new SsencError("USAGE", "password must not be empty");
     return pw;
 }
+// Optional in-memory cache of Argon2id results. Off by default. An interactive page that
+// re-encrypts on every keystroke would otherwise pay the full Argon2id cost each time.
+// While enabled, derived keys stay in memory for as long as they are cached.
+let kdfCacheSize = 0;
+const kdfCache = new Map();
+/** Keeps up to `entries` Argon2id results in memory (0, the default, disables and clears the cache). */
+function setKdfCacheSize(entries) {
+    kdfCacheSize = Math.max(0, Math.floor(entries));
+    while (kdfCache.size > kdfCacheSize)
+        kdfCache.delete(kdfCache.keys().next().value);
+}
+async function passwordKek(pw, salt, m, t, p) {
+    if (kdfCacheSize === 0)
+        return argon2id(pw, salt, m, t, p, 32);
+    const id = b64urlEncode(await sha256(concatBytes(u64be(pw.length), pw, u64be(salt.length), salt, utf8(m + "," + t + "," + p))));
+    let kek = kdfCache.get(id);
+    if (kek) {
+        kdfCache.delete(id);
+    }
+    else {
+        kek = argon2id(pw, salt, m, t, p, 32);
+        if (kdfCache.size >= kdfCacheSize)
+            kdfCache.delete(kdfCache.keys().next().value);
+    }
+    kdfCache.set(id, kek);
+    return kek;
+}
 async function resolveSsh(key) {
     let blob;
     if (key.publicKey !== undefined)
@@ -836,7 +863,7 @@ async function makeSlots(keys, dek, kdf) {
         if (key.type !== "password")
             continue;
         const salt = randomBytes(16);
-        const kek = argon2id(passwordBytes(key), salt, kdf.m, kdf.t, kdf.p, 32);
+        const kek = await passwordKek(passwordBytes(key), salt, kdf.m, kdf.t, kdf.p);
         lines.push(slotLine({ type: "pw", m: kdf.m, t: kdf.t, p: kdf.p, salt, wrapped: await wrapDek(kek, dek) }));
     }
     for (const key of keys) {
@@ -866,7 +893,7 @@ async function openWith(file, key) {
         for (const slot of file.slots) {
             if (slot.type !== "pw")
                 continue;
-            const dek = await tryUnwrap(argon2id(pw, slot.salt, slot.m, slot.t, slot.p, 32), slot);
+            const dek = await tryUnwrap(await passwordKek(pw, slot.salt, slot.m, slot.t, slot.p), slot);
             if (dek)
                 return dek;
         }
@@ -1127,5 +1154,5 @@ const VERSION = "0.1.0";
 // ---------------------------------------------------------------------------------------
 // public API
 // ---------------------------------------------------------------------------------------
-export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, VERSION, BUILD };
+export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, setKdfCacheSize, VERSION, BUILD };
 export { sshParsePublicKey, sshFingerprint, sshKeyType };
