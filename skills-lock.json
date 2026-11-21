@@ -31,10 +31,10 @@
     },
     "xx": {
       "source": "stopsopa/xx",
-      "commit": "e282fe1e1a91b235822ebab3f51c14a2b3b0215c",
+      "commit": "198f2c5d773b4bb8e70ad5c1c4acb4a790e54219",
       "sourceType": "github",
       "skillPath": "xx/SKILL.md",
-      "computedHash": "48f21acc8ab2a85947992c313d8f0379535b9e00ee48d1342314a349122a8155"
+      "computedHash": "b2a7081622a37ad9ed075d8c8825624b9948bfb0939db3639759fbe08952d266"
     }
   }
 }
