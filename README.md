@@ -1,5 +1,11 @@
 # ssenc
 
+**Live pages:** [Encryptor — encrypt a message in the browser](https://stopsopa.github.io/encrypt/encryptor/) ·
+[Test report — every implementation decrypting every other](https://stopsopa.github.io/encrypt/)
+
+**Documentation:** [Command line](docs/cli.md) · [TypeScript / JavaScript library](docs/typescript.md) ·
+[Rust library](docs/rust.md) · [Format specification](SPEC.md) · [Design and rationale](PLAN.md)
+
 Password / ssh-agent encryption of text and binary files into **diff-friendly ASCII text**,
 with three interoperable implementations: **TypeScript**, **Rust** and **Bash**.
 
@@ -15,13 +21,6 @@ server:                     #ssenc1 lines ws=1 pad=16
                                 5DoEJCK0j5aaC4fNti2JC_jz5LeQS9rGzzL1ESoKSQntIaD_jpFlzQ…
                                 QcTY1sI009UgXjWCZuwOwNikpQhBIdWbf9wVNCkpk-w
 ```
-
-- Format specification: [SPEC.md](SPEC.md) · design and rationale: [PLAN.md](PLAN.md)
-- Test report (every implementation decrypting every other one, including a browser):
-  <https://stopsopa.github.io/encrypt/>
-- Encryptor page — type a message and a key, get a shareable link that holds only the
-  encrypted text: <https://stopsopa.github.io/encrypt/encryptor/> (source in [`encryptor/`](encryptor);
-  locally: `xx encryptor serve`)
 
 ## What it does
 
@@ -61,7 +60,7 @@ ssenc inspect -i config.yml.enc                 # mode and key slots, no key nee
 Options: `--no-preserve-ws`, `--pad N`, `--chunk N`, `--kdf default|strong|m=..,t=..,p=..`,
 `--seal`, `--previous FILE`, `--fresh`, `--rewrap-only`. Exit codes: 1 usage, 2 wrong key
 or modified data, 3 malformed input, 4 environment (ssh-agent, unsupported key).
-Full description in [SPEC.md](SPEC.md) section 7.
+Everything about the command line: [docs/cli.md](docs/cli.md).
 
 ## Libraries
 
@@ -86,8 +85,9 @@ await encrypt(bytes, { type: "ssh", publicKey: pubFileContent }, { mode: "blob" 
 ```
 
 Options of `encrypt`: `mode`, `preserveWhitespace`, `pad`, `chunk`, `kdf`, `previous`, `seal`.
+Full reference, including ssh keys, errors and the browser build: [docs/typescript.md](docs/typescript.md).
 
-**Rust** — crate in [`rust/`](rust): `ssenc::encrypt`, `decrypt`, `rekey`, `inspect`.
+**Rust** — crate in [`rust/`](rust): `ssenc::encrypt`, `decrypt`, `rekey`, `inspect`. Full reference: [docs/rust.md](docs/rust.md).
 
 **Bash** — `source bash/ssenc.sh`, then `ssenc_encrypt`, `ssenc_decrypt`, `ssenc_rekey`,
 `ssenc_inspect` (stdin → stdout). Needs bash ≥ 4 and OpenSSL ≥ 3.2.
