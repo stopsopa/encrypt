@@ -1,6 +1,7 @@
 # Builds the three implementations, runs every test suite (unit tests, the cross matrix
 # including the browser through Playwright, vectors, rekey, diff stability, negative tests)
-# on Linux and macOS, and publishes one explorable report to GitHub Pages.
+# and every usage example on Linux and macOS, and publishes one explorable report to
+# GitHub Pages.
 name: test
 
 on:
@@ -77,6 +78,11 @@ jobs:
 
       - name: test
         run: ./test.sh
+
+      # Every usage example in examples/ (command line and library, three variants each).
+      # They assert their own results, so a broken example fails the build.
+      - name: examples
+        run: ./examples/examples.sh
 
       - name: upload results
         if: always()

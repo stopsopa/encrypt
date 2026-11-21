@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Sourced by rust.sh, ts.sh and bash.sh (and it can be run on its own): starts from an empty ./tmp, makes two demo passwords,
+# an ssh public key that is in no agent, and one encrypted file to experiment on.
+cd "$(dirname "${BASH_SOURCE[0]}")"
+declare -F run > /dev/null || source ../lib/demo.sh
+rm -rf tmp && mkdir tmp
+
+echo "${0}: prepare: the right password, a file, and an ssh key that is not loaded anywhere"
+run 'openssl rand -base64 24 > tmp/password.txt'
+run 'printf "the secret\n" > tmp/secret.txt'
+run 'ssh-keygen -q -t ed25519 -N "" -C "demo key" -f tmp/demo_ed25519'

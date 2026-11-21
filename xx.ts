@@ -36,6 +36,9 @@ export default (setup: Record<string, Command>) => {
     }
   }
 
+  // --- examples ---
+  add("examples", "examples/examples.sh", "run ALL usage examples (examples/case-*/ in the rust, ts and bash variant); they check their own results. Args: text filters like 011 or ssh, --lang rust,ts,bash  --quiet (summary only)  --list");
+
   // --- report ---
   commands["report build"] = {
     command: `

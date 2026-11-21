@@ -10,6 +10,7 @@
 - [Command line](docs/cli.md) — the `ssenc` command, identical in all implementations
 - [TypeScript / JavaScript library](docs/typescript.md) — single-file modules for Node.js and the browser
 - [Rust library](docs/rust.md) — the `ssenc` crate and binary
+- [Examples](examples/README.md) — 24 runnable demos, each for the Rust, TypeScript and Bash variant
 - [Format specification](SPEC.md) — the exact bytes of an encrypted file
 - [Design and rationale](PLAN.md) — why it is built this way
 
@@ -128,6 +129,7 @@ Node.js version is pinned in `.tool-versions` (asdf); CI uses the same file.
 ./compile.sh      # build all implementations
 ./envverify.sh    # is everything needed present? reports every problem with a fix
 ./test.sh         # unit tests + cross matrix incl. browser, builds tests/out/report/index.html
+./examples/examples.sh   # every usage example; they check their own results
 ```
 
 Each of `typescript/`, `rust/`, `bash/` has its own `envverify.sh`, `install.sh`,
