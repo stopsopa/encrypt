@@ -10,10 +10,10 @@
     },
     "envprocessor": {
       "source": "stopsopa/envprocessor",
-      "commit": "7d8c7ee16893a31b16c367b8c53c4bea961d2d15",
+      "commit": "75953714b9d7835b34152acb139a582bb249e7fe",
       "sourceType": "github",
       "skillPath": ".agents/skills/envprocessor/SKILL.md",
-      "computedHash": "6a1b5ee97f8ff37316953b3e33ca31d64d897d654c1e9b91fe0a9a07539b67ac"
+      "computedHash": "9b8562fd3998123fc5e1916fadae651eb5725acb446320da80760a89aa94c10a"
     },
     "gcp-css": {
       "source": "stopsopa/gcp-css",
