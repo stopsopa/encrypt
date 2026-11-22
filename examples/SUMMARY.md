@@ -30,15 +30,15 @@ $S decrypt < secret.enc                      # my first secret
 Encrypt and decrypt a file; the password is read from a file.
 
 ```sh
-openssl rand -base64 24 > password.txt
+openssl rand -base64 24 > s/password.txt
 
-$S encrypt --password-file password.txt -i  xx.ts -o xx.ts.enc
-$S decrypt --password-file password.txt -i xx.ts.enc -o xx.ts.decoded
+$S encrypt --password-file s/password.txt -i  xx.ts -o xx.ts.enc
+$S decrypt --password-file s/password.txt -i xx.ts.enc -o xx.ts.decoded
 diff xx.ts xx.ts.decoded 
-$S decrypt --password-file password.txt -i xx.ts.enc      # to standard output
+$S decrypt --password-file s/password.txt -i xx.ts.enc      # to standard output
 
-$S encrypt --password-file password.txt -i xx.ts.decoded -o xx.ts.decoded   # in place: same file in and out
-$S decrypt --password-file password.txt -i xx.ts.decoded -o xx.ts.decoded 
+$S encrypt --password-file s/password.txt -i xx.ts.decoded -o xx.ts.decoded   # in place: same file in and out
+$S decrypt --password-file s/password.txt -i xx.ts.decoded -o xx.ts.decoded 
 diff xx.ts xx.ts.decoded 
 ```
 
@@ -47,11 +47,11 @@ diff xx.ts xx.ts.decoded
 Any bytes (an image, an archive) become ASCII text and come back identical.
 
 ```sh
-$S encrypt --mode blob --password-file password.txt -i s/i.jpg -o s/i.jpg.txt
-$S decrypt --password-file password.txt -i s/i.jpg.txt -o s/i.jpg   # no --mode: it is in the file
+$S encrypt --mode blob --password-file s/password.txt -i s/i.jpg -o s/i.jpg.txt
+$S decrypt --password-file s/password.txt -i s/i.jpg.txt -o s/i.jpg   # no --mode: it is in the file
 ls -la s/i*
 
-$S encrypt --mode blob --chunk 16384 --password-file password.txt -i photo.bin -o photo.bin.enc
+$S encrypt --mode blob --chunk 16384 --password-file s/password.txt -i photo.bin -o photo.bin.enc
 ```
 
 ## case-004-cli_inspect_without_key
@@ -71,13 +71,13 @@ $S --version
 After an edit of the plain file, only the edited line changes in the encrypted file.
 
 ```sh
-$S encrypt --password-file password.txt -i config.yml -o config.yml.enc   # first time
+$S encrypt --password-file s/password.txt -i config.yml -o config.yml.enc   # first time
 # ... edit one line of config.yml ...
-$S encrypt --password-file password.txt -i config.yml -o config.yml.enc   # existing output is reused
+$S encrypt --password-file s/password.txt -i config.yml -o config.yml.enc   # existing output is reused
 git diff config.yml.enc                                                      # one line differs
 
-$S encrypt --password-file password.txt --previous old.enc -i config.yml -o other.enc   # reuse another file
-$S encrypt --password-file password.txt --fresh -i config.yml -o config.yml.enc         # start over: every line changes
+$S encrypt --password-file s/password.txt --previous old.enc -i config.yml -o other.enc   # reuse another file
+$S encrypt --password-file s/password.txt --fresh -i config.yml -o config.yml.enc         # start over: every line changes
 ```
 
 ## case-006-cli_whitespace_and_padding
@@ -85,10 +85,10 @@ $S encrypt --password-file password.txt --fresh -i config.yml -o config.yml.enc 
 What stays visible in an encrypted line: indentation and rough length.
 
 ```sh
-$S encrypt --password-file password.txt -i app.yml -o app.enc                    # indentation stays visible
-$S encrypt --no-preserve-ws --password-file password.txt -i app.yml -o app.enc   # indentation is encrypted too
-$S encrypt --pad 0 --password-file password.txt -i app.yml -o app.enc            # no padding: exact line lengths show
-$S encrypt --pad 128 --password-file password.txt -i app.yml -o app.enc          # all short lines look the same length
+$S encrypt --password-file s/password.txt -i app.yml -o app.enc                    # indentation stays visible
+$S encrypt --no-preserve-ws --password-file s/password.txt -i app.yml -o app.enc   # indentation is encrypted too
+$S encrypt --pad 0 --password-file s/password.txt -i app.yml -o app.enc            # no padding: exact line lengths show
+$S encrypt --pad 128 --password-file s/password.txt -i app.yml -o app.enc          # all short lines look the same length
 ```
 
 ## case-007-cli_seal_detects_removed_lines
@@ -96,11 +96,11 @@ $S encrypt --pad 128 --password-file password.txt -i app.yml -o app.enc         
 A changed line is always detected; a removed or moved line only with `--seal`.
 
 ```sh
-$S encrypt --password-file password.txt -i rules.txt -o rules.enc
-sed "5d" rules.enc | $S decrypt --password-file password.txt      # works: one line is silently missing
+$S encrypt --password-file s/password.txt -i rules.txt -o rules.enc
+sed "5d" rules.enc | $S decrypt --password-file s/password.txt      # works: one line is silently missing
 
-$S encrypt --seal --password-file password.txt -i rules.txt -o sealed.enc
-sed "6d" sealed.enc | $S decrypt --password-file password.txt     # exit code 2
+$S encrypt --seal --password-file s/password.txt -i rules.txt -o sealed.enc
+sed "6d" sealed.enc | $S decrypt --password-file s/password.txt     # exit code 2
 ```
 
 ## case-008-cli_password_cost_kdf
@@ -108,11 +108,11 @@ sed "6d" sealed.enc | $S decrypt --password-file password.txt     # exit code 2
 How expensive it is to turn the password into a key (and so to guess it).
 
 ```sh
-$S encrypt --password-file password.txt -i secret.txt -o secret.enc                        # default: 64 MiB, 3 passes
-$S encrypt --kdf strong --password-file password.txt -i secret.txt -o secret.enc           # 1 GiB, 4 passes
-$S encrypt --kdf m=19456,t=2,p=1 --password-file password.txt -i secret.txt -o secret.enc  # your own numbers
+$S encrypt --password-file s/password.txt -i secret.txt -o secret.enc                        # default: 64 MiB, 3 passes
+$S encrypt --kdf strong --password-file s/password.txt -i secret.txt -o secret.enc           # 1 GiB, 4 passes
+$S encrypt --kdf m=19456,t=2,p=1 --password-file s/password.txt -i secret.txt -o secret.enc  # your own numbers
 
-$S decrypt --password-file password.txt -i secret.enc     # no option: the cost is stored in the file
+$S decrypt --password-file s/password.txt -i secret.enc     # no option: the cost is stored in the file
 ```
 
 ## case-009-cli_errors_and_exit_codes
@@ -120,7 +120,7 @@ $S decrypt --password-file password.txt -i secret.enc     # no option: the cost 
 Every kind of failure has its own exit code.
 
 ```sh
-$S decrypt --password-file password.txt -i secret.enc      # 0
+$S decrypt --password-file s/password.txt -i secret.enc      # 0
 SSENC_PASSWORD="wrong" $S decrypt -i secret.enc            # 2  AUTH: wrong key, or the file was modified
 echo "just some text" | $S decrypt                         # 3  MALFORMED: not an ssenc file
 $S decrypt --no-such-option -i secret.enc                  # 1  USAGE: bad arguments, empty or missing password
@@ -178,7 +178,7 @@ Move a file from a password to an ssh key and back; add and remove keys.
 
 ```sh
 # password -> ssh key
-$S rekey --password-file password.txt --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
+$S rekey --password-file s/password.txt --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
 
 # add keys: list every key the file should have from now on
 $S rekey --ssh-key me.pub --new-ssh-key me.pub --new-ssh-key other.pub --new-password-file backup.txt -i secrets.env.enc -o secrets.env.enc
@@ -187,7 +187,7 @@ $S rekey --ssh-key me.pub --new-ssh-key me.pub --new-ssh-key other.pub --new-pas
 $S rekey --ssh-key me.pub --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
 
 # ssh key -> password
-$S rekey --ssh-key me.pub --new-password-file password.txt -i secrets.env.enc -o secrets.env.enc
+$S rekey --ssh-key me.pub --new-password-file s/password.txt -i secrets.env.enc -o secrets.env.enc
 ```
 
 ## case-014-cli_many_files_fast_with_random_key
@@ -212,13 +212,13 @@ Never use `--kdf m=8,t=1,p=1` with a password a person chose.
 A file made by one implementation is read, updated and rekeyed by the other two.
 
 ```sh
-rust/target/release/ssenc encrypt --password-file password.txt -i config.yml -o config.yml.enc
-typescript/bin/ssenc      decrypt --password-file password.txt -i config.yml.enc
-bash/bin/ssenc            decrypt --password-file password.txt -i config.yml.enc
+rust/target/release/ssenc encrypt --password-file s/password.txt -i config.yml -o config.yml.enc
+typescript/bin/ssenc      decrypt --password-file s/password.txt -i config.yml.enc
+bash/bin/ssenc            decrypt --password-file s/password.txt -i config.yml.enc
 
 # ... edit one line of config.yml ...
-typescript/bin/ssenc      encrypt --password-file password.txt -i config.yml -o config.yml.enc   # still a one-line diff
-bash/bin/ssenc            rekey --password-file password.txt --new-ssh-key me.pub -i config.yml.enc -o config.yml.enc
+typescript/bin/ssenc      encrypt --password-file s/password.txt -i config.yml -o config.yml.enc   # still a one-line diff
+bash/bin/ssenc            rekey --password-file s/password.txt --new-ssh-key me.pub -i config.yml.enc -o config.yml.enc
 rust/target/release/ssenc decrypt --ssh-key me.pub -i config.yml.enc
 ```
 
@@ -291,9 +291,9 @@ let back = decrypt(photo.as_bytes(), &key)?;
 ```
 
 ```sh
-ssenc_encrypt --mode blob --password-file password.txt -i photo.bin -o photo.bin.enc
+ssenc_encrypt --mode blob --password-file s/password.txt -i photo.bin -o photo.bin.enc
 ssenc_inspect -i photo.bin.enc
-ssenc_decrypt --password-file password.txt -i photo.bin.enc -o photo.bin
+ssenc_decrypt --password-file s/password.txt -i photo.bin.enc -o photo.bin
 ```
 
 ## case-019-lib_options_and_stable_updates
