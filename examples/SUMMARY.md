@@ -32,8 +32,8 @@ Encrypt and decrypt a file; the password is read from a file.
 ```sh
 openssl rand -base64 24 > s/password.txt
 
-$S encrypt --password-file s/password.txt -i  xx.ts -o xx.ts.enc
-$S decrypt --password-file s/password.txt -i xx.ts.enc -o xx.ts.decoded
+$S encrypt --password-file s/password.txt -i xx.ts      -o xx.ts.enc
+$S decrypt --password-file s/password.txt -i xx.ts.enc  -o xx.ts.decoded
 diff xx.ts xx.ts.decoded 
 $S decrypt --password-file s/password.txt -i xx.ts.enc      # to standard output
 
