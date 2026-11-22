@@ -47,8 +47,9 @@ diff xx.ts xx.ts.decoded
 Any bytes (an image, an archive) become ASCII text and come back identical.
 
 ```sh
-$S encrypt --mode blob --password-file password.txt -i photo.bin -o photo.bin.enc
-$S decrypt --password-file password.txt -i photo.bin.enc -o photo.bin   # no --mode: it is in the file
+$S encrypt --mode blob --password-file password.txt -i s/i.jpg -o s/i.jpg.txt
+$S decrypt --password-file password.txt -i s/i.jpg.txt -o s/i.jpg   # no --mode: it is in the file
+ls -la s/i*
 
 $S encrypt --mode blob --chunk 16384 --password-file password.txt -i photo.bin -o photo.bin.enc
 ```
