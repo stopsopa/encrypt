@@ -1,40 +1,4 @@
 {
   "version": 2,
-  "skills": {
-    "ace-editor-web-component": {
-      "source": "stopsopa/ace-editor-webcomponent",
-      "commit": "e82e3c62f37af704d10d6f880fb08fc1c2c3f4f1",
-      "sourceType": "github",
-      "skillPath": "ace-editor-web-component/SKILL.md",
-      "computedHash": "fc096b37f5e7ac0a5d2c9e5d64829c504fe9b9a6a504a34620cda61e4cc0aef3"
-    },
-    "envprocessor": {
-      "source": "stopsopa/envprocessor",
-      "commit": "75953714b9d7835b34152acb139a582bb249e7fe",
-      "sourceType": "github",
-      "skillPath": ".agents/skills/envprocessor/SKILL.md",
-      "computedHash": "9b8562fd3998123fc5e1916fadae651eb5725acb446320da80760a89aa94c10a"
-    },
-    "gcp-css": {
-      "source": "stopsopa/gcp-css",
-      "commit": "73e3727b2a63d5666b50b4b6e1f8cf839fcd28ba",
-      "sourceType": "github",
-      "skillPath": "gcp-css/SKILL.md",
-      "computedHash": "c638ad207e924e6aecbc33416d94f99b5b14306551fbb5e3efec506468f49575"
-    },
-    "vanilla-tabs": {
-      "source": "stopsopa/tabs",
-      "commit": "5a17a6107601d2f1f488e49c043deb48f4c70476",
-      "sourceType": "github",
-      "skillPath": "skills/vanilla-tabs/SKILL.md",
-      "computedHash": "561909addcddc4f24faddda7b92518946aab896cadd040d83146412cf79c3a22"
-    },
-    "xx": {
-      "source": "stopsopa/xx",
-      "commit": "198f2c5d773b4bb8e70ad5c1c4acb4a790e54219",
-      "sourceType": "github",
-      "skillPath": "xx/SKILL.md",
-      "computedHash": "b2a7081622a37ad9ed075d8c8825624b9948bfb0939db3639759fbe08952d266"
-    }
-  }
+  "skills": {}
 }
