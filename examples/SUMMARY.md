@@ -1,9 +1,18 @@
 # Examples summary
 
-The essence of every example in a few lines. `ssenc` stands for any of the three commands
+The essence of every example in a few lines. `$S` stands for any of the three commands
 (`rust/target/release/ssenc`, `typescript/bin/ssenc`, `bash/bin/ssenc`): they take the same
 arguments. The full, runnable version of each block is in the directory named in the header
 (`rust.sh`, `ts.sh`, `bash.sh`).
+
+you can use snippet 
+
+```
+export S="rust/target/release/ssenc"
+export S="typescript/bin/ssenc"
+export S="bash/bin/ssenc"
+
+```
 
 ## case-001-cli_text_with_password
 
@@ -12,8 +21,8 @@ Encrypt a text from standard input with a password and decrypt it.
 ```sh
 export SSENC_PASSWORD="$(openssl rand -base64 24)"
 
-echo "my first secret" | ssenc encrypt > secret.enc
-ssenc decrypt < secret.enc                      # my first secret
+echo "my first secret" | $S encrypt > secret.enc
+$S decrypt < secret.enc                      # my first secret
 ```
 
 ## case-002-cli_file_with_password
@@ -23,11 +32,14 @@ Encrypt and decrypt a file; the password is read from a file.
 ```sh
 openssl rand -base64 24 > password.txt
 
-ssenc encrypt --password-file password.txt -i config.yml -o config.yml.enc
-ssenc decrypt --password-file password.txt -i config.yml.enc -o config.yml
-ssenc decrypt --password-file password.txt -i config.yml.enc      # to standard output
+$S encrypt --password-file password.txt -i  xx.ts -o xx.ts.enc
+$S decrypt --password-file password.txt -i xx.ts.enc -o xx.ts.decoded
+diff xx.ts xx.ts.decoded 
+$S decrypt --password-file password.txt -i xx.ts.enc      # to standard output
 
-ssenc encrypt --password-file password.txt -i file.yml -o file.yml   # in place: same file in and out
+$S encrypt --password-file password.txt -i xx.ts.decoded -o xx.ts.decoded   # in place: same file in and out
+$S decrypt --password-file password.txt -i xx.ts.decoded -o xx.ts.decoded 
+diff xx.ts xx.ts.decoded 
 ```
 
 ## case-003-cli_binary_file_blob_mode
@@ -35,10 +47,10 @@ ssenc encrypt --password-file password.txt -i file.yml -o file.yml   # in place:
 Any bytes (an image, an archive) become ASCII text and come back identical.
 
 ```sh
-ssenc encrypt --mode blob --password-file password.txt -i photo.bin -o photo.bin.enc
-ssenc decrypt --password-file password.txt -i photo.bin.enc -o photo.bin   # no --mode: it is in the file
+$S encrypt --mode blob --password-file password.txt -i photo.bin -o photo.bin.enc
+$S decrypt --password-file password.txt -i photo.bin.enc -o photo.bin   # no --mode: it is in the file
 
-ssenc encrypt --mode blob --chunk 16384 --password-file password.txt -i photo.bin -o photo.bin.enc
+$S encrypt --mode blob --chunk 16384 --password-file password.txt -i photo.bin -o photo.bin.enc
 ```
 
 ## case-004-cli_inspect_without_key
@@ -46,11 +58,11 @@ ssenc encrypt --mode blob --chunk 16384 --password-file password.txt -i photo.bi
 See how a file was encrypted, without having the key.
 
 ```sh
-ssenc inspect -i notes.txt.enc
+$S inspect -i notes.txt.enc
 # {"format":"ssenc1","mode":"lines","ws":true,"pad":16,"seal":false,"slots":[{"type":"pw","kdf":"argon2id","m":65536,"t":3,"p":4}]}
 
-ssenc inspect -i notes.txt     # not an encrypted file: exit code 3
-ssenc --version
+$S inspect -i notes.txt     # not an encrypted file: exit code 3
+$S --version
 ```
 
 ## case-005-cli_update_changes_only_edited_lines
@@ -58,13 +70,13 @@ ssenc --version
 After an edit of the plain file, only the edited line changes in the encrypted file.
 
 ```sh
-ssenc encrypt --password-file password.txt -i config.yml -o config.yml.enc   # first time
+$S encrypt --password-file password.txt -i config.yml -o config.yml.enc   # first time
 # ... edit one line of config.yml ...
-ssenc encrypt --password-file password.txt -i config.yml -o config.yml.enc   # existing output is reused
+$S encrypt --password-file password.txt -i config.yml -o config.yml.enc   # existing output is reused
 git diff config.yml.enc                                                      # one line differs
 
-ssenc encrypt --password-file password.txt --previous old.enc -i config.yml -o other.enc   # reuse another file
-ssenc encrypt --password-file password.txt --fresh -i config.yml -o config.yml.enc         # start over: every line changes
+$S encrypt --password-file password.txt --previous old.enc -i config.yml -o other.enc   # reuse another file
+$S encrypt --password-file password.txt --fresh -i config.yml -o config.yml.enc         # start over: every line changes
 ```
 
 ## case-006-cli_whitespace_and_padding
@@ -72,10 +84,10 @@ ssenc encrypt --password-file password.txt --fresh -i config.yml -o config.yml.e
 What stays visible in an encrypted line: indentation and rough length.
 
 ```sh
-ssenc encrypt --password-file password.txt -i app.yml -o app.enc                    # indentation stays visible
-ssenc encrypt --no-preserve-ws --password-file password.txt -i app.yml -o app.enc   # indentation is encrypted too
-ssenc encrypt --pad 0 --password-file password.txt -i app.yml -o app.enc            # no padding: exact line lengths show
-ssenc encrypt --pad 128 --password-file password.txt -i app.yml -o app.enc          # all short lines look the same length
+$S encrypt --password-file password.txt -i app.yml -o app.enc                    # indentation stays visible
+$S encrypt --no-preserve-ws --password-file password.txt -i app.yml -o app.enc   # indentation is encrypted too
+$S encrypt --pad 0 --password-file password.txt -i app.yml -o app.enc            # no padding: exact line lengths show
+$S encrypt --pad 128 --password-file password.txt -i app.yml -o app.enc          # all short lines look the same length
 ```
 
 ## case-007-cli_seal_detects_removed_lines
@@ -83,11 +95,11 @@ ssenc encrypt --pad 128 --password-file password.txt -i app.yml -o app.enc      
 A changed line is always detected; a removed or moved line only with `--seal`.
 
 ```sh
-ssenc encrypt --password-file password.txt -i rules.txt -o rules.enc
-sed "5d" rules.enc | ssenc decrypt --password-file password.txt      # works: one line is silently missing
+$S encrypt --password-file password.txt -i rules.txt -o rules.enc
+sed "5d" rules.enc | $S decrypt --password-file password.txt      # works: one line is silently missing
 
-ssenc encrypt --seal --password-file password.txt -i rules.txt -o sealed.enc
-sed "6d" sealed.enc | ssenc decrypt --password-file password.txt     # exit code 2
+$S encrypt --seal --password-file password.txt -i rules.txt -o sealed.enc
+sed "6d" sealed.enc | $S decrypt --password-file password.txt     # exit code 2
 ```
 
 ## case-008-cli_password_cost_kdf
@@ -95,11 +107,11 @@ sed "6d" sealed.enc | ssenc decrypt --password-file password.txt     # exit code
 How expensive it is to turn the password into a key (and so to guess it).
 
 ```sh
-ssenc encrypt --password-file password.txt -i secret.txt -o secret.enc                        # default: 64 MiB, 3 passes
-ssenc encrypt --kdf strong --password-file password.txt -i secret.txt -o secret.enc           # 1 GiB, 4 passes
-ssenc encrypt --kdf m=19456,t=2,p=1 --password-file password.txt -i secret.txt -o secret.enc  # your own numbers
+$S encrypt --password-file password.txt -i secret.txt -o secret.enc                        # default: 64 MiB, 3 passes
+$S encrypt --kdf strong --password-file password.txt -i secret.txt -o secret.enc           # 1 GiB, 4 passes
+$S encrypt --kdf m=19456,t=2,p=1 --password-file password.txt -i secret.txt -o secret.enc  # your own numbers
 
-ssenc decrypt --password-file password.txt -i secret.enc     # no option: the cost is stored in the file
+$S decrypt --password-file password.txt -i secret.enc     # no option: the cost is stored in the file
 ```
 
 ## case-009-cli_errors_and_exit_codes
@@ -107,13 +119,13 @@ ssenc decrypt --password-file password.txt -i secret.enc     # no option: the co
 Every kind of failure has its own exit code.
 
 ```sh
-ssenc decrypt --password-file password.txt -i secret.enc      # 0
-SSENC_PASSWORD="wrong" ssenc decrypt -i secret.enc            # 2  AUTH: wrong key, or the file was modified
-echo "just some text" | ssenc decrypt                         # 3  MALFORMED: not an ssenc file
-ssenc decrypt --no-such-option -i secret.enc                  # 1  USAGE: bad arguments, empty or missing password
-ssenc encrypt --ssh-key key.pub -i secret.txt                 # 4  ENV: no ssh-agent, or the key is not in it
+$S decrypt --password-file password.txt -i secret.enc      # 0
+SSENC_PASSWORD="wrong" $S decrypt -i secret.enc            # 2  AUTH: wrong key, or the file was modified
+echo "just some text" | $S decrypt                         # 3  MALFORMED: not an ssenc file
+$S decrypt --no-such-option -i secret.enc                  # 1  USAGE: bad arguments, empty or missing password
+$S encrypt --ssh-key key.pub -i secret.txt                 # 4  ENV: no ssh-agent, or the key is not in it
 
-ssenc decrypt -i secret.enc -o secret.txt || echo "failed with $?"
+$S decrypt -i secret.enc -o secret.txt || echo "failed with $?"
 ```
 
 ## case-010-cli_rekey_change_password
@@ -121,13 +133,13 @@ ssenc decrypt -i secret.enc -o secret.txt || echo "failed with $?"
 Change the password of an encrypted file.
 
 ```sh
-ssenc rekey --password-file old.txt --new-password-file new.txt -i config.yml.enc -o config.yml.enc
+$S rekey --password-file old.txt --new-password-file new.txt -i config.yml.enc -o config.yml.enc
 
 # the same with environment variables
-SSENC_PASSWORD="old" SSENC_NEW_PASSWORD="new" ssenc rekey -i config.yml.enc -o config.yml.enc
+SSENC_PASSWORD="old" SSENC_NEW_PASSWORD="new" $S rekey -i config.yml.enc -o config.yml.enc
 
 # only the key line at the top changes, the rest of the file stays byte-identical
-ssenc rekey --rewrap-only --password-file old.txt --new-password-file new.txt -i config.yml.enc -o config.yml.enc
+$S rekey --rewrap-only --password-file old.txt --new-password-file new.txt -i config.yml.enc -o config.yml.enc
 ```
 
 ## case-011-cli_ssh_key_from_ssh_agent
@@ -138,10 +150,10 @@ An ssh key instead of a password. The private key stays in `ssh-agent`.
 ssh-keygen -t ed25519 -f demo_key        # or -t rsa
 ssh-add demo_key
 
-ssenc encrypt --ssh-key demo_key.pub -i secrets.env -o secrets.env.enc
-ssenc decrypt --ssh-key demo_key.pub -i secrets.env.enc
+$S encrypt --ssh-key demo_key.pub -i secrets.env -o secrets.env.enc
+$S decrypt --ssh-key demo_key.pub -i secrets.env.enc
 
-ssenc decrypt --ssh-key "SHA256:..." -i secrets.env.enc      # the key named by fingerprint (ssh-add -l)
+$S decrypt --ssh-key "SHA256:..." -i secrets.env.enc      # the key named by fingerprint (ssh-add -l)
 ```
 
 ## case-012-cli_several_keys_ssh_and_backup_password
@@ -149,14 +161,14 @@ ssenc decrypt --ssh-key "SHA256:..." -i secrets.env.enc      # the key named by 
 One file that several people can open, plus a backup password.
 
 ```sh
-ssenc encrypt --ssh-key alice.pub --ssh-key bob.pub --password-file backup-password.txt -i secrets.env -o secrets.env.enc
+$S encrypt --ssh-key alice.pub --ssh-key bob.pub --password-file backup-password.txt -i secrets.env -o secrets.env.enc
 
-ssenc decrypt --ssh-key alice.pub -i secrets.env.enc                     # any one of the three opens it
-ssenc decrypt --ssh-key bob.pub -i secrets.env.enc
-ssenc decrypt --password-file backup-password.txt -i secrets.env.enc
+$S decrypt --ssh-key alice.pub -i secrets.env.enc                     # any one of the three opens it
+$S decrypt --ssh-key bob.pub -i secrets.env.enc
+$S decrypt --password-file backup-password.txt -i secrets.env.enc
 
 # an update made with one key keeps all three keys
-ssenc encrypt --ssh-key bob.pub -i secrets.env -o secrets.env.enc
+$S encrypt --ssh-key bob.pub -i secrets.env -o secrets.env.enc
 ```
 
 ## case-013-cli_rekey_between_password_and_ssh_key
@@ -165,16 +177,16 @@ Move a file from a password to an ssh key and back; add and remove keys.
 
 ```sh
 # password -> ssh key
-ssenc rekey --password-file password.txt --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
+$S rekey --password-file password.txt --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
 
 # add keys: list every key the file should have from now on
-ssenc rekey --ssh-key me.pub --new-ssh-key me.pub --new-ssh-key other.pub --new-password-file backup.txt -i secrets.env.enc -o secrets.env.enc
+$S rekey --ssh-key me.pub --new-ssh-key me.pub --new-ssh-key other.pub --new-password-file backup.txt -i secrets.env.enc -o secrets.env.enc
 
 # remove a key: leave it out
-ssenc rekey --ssh-key me.pub --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
+$S rekey --ssh-key me.pub --new-ssh-key me.pub -i secrets.env.enc -o secrets.env.enc
 
 # ssh key -> password
-ssenc rekey --ssh-key me.pub --new-password-file password.txt -i secrets.env.enc -o secrets.env.enc
+$S rekey --ssh-key me.pub --new-password-file password.txt -i secrets.env.enc -o secrets.env.enc
 ```
 
 ## case-014-cli_many_files_fast_with_random_key
@@ -185,11 +197,11 @@ Many files quickly: a random key file instead of a human password, and the minim
 openssl rand -base64 32 > bulk.key       # 256 random bits: nothing to guess, so the cost can be minimal
 
 for f in plain/*.txt; do
-  ssenc encrypt --kdf m=8,t=1,p=1 --password-file bulk.key -i "$f" -o "encrypted/$(basename "$f").enc"
+  $S encrypt --kdf m=8,t=1,p=1 --password-file bulk.key -i "$f" -o "encrypted/$(basename "$f").enc"
 done
 
 # in parallel, 4 at a time
-ls plain | xargs -P 4 -I {} ssenc encrypt --kdf m=8,t=1,p=1 --password-file bulk.key -i plain/{} -o encrypted/{}.enc
+ls plain | xargs -P 4 -I {} $S encrypt --kdf m=8,t=1,p=1 --password-file bulk.key -i plain/{} -o encrypted/{}.enc
 ```
 
 Never use `--kdf m=8,t=1,p=1` with a password a person chose.
@@ -215,7 +227,7 @@ Keep the encrypted file in git; let git show diffs of the plain text.
 
 ```sh
 echo "settings.yml" > .gitignore                 # the plain file is never committed
-ssenc encrypt --password-file ~/password.txt -i settings.yml -o settings.yml.enc
+$S encrypt --password-file ~/password.txt -i settings.yml -o settings.yml.enc
 git add .gitignore settings.yml.enc && git commit -m "settings, encrypted"
 
 # ... edit one line of settings.yml, encrypt again ...
@@ -223,7 +235,7 @@ git diff                                         # one encrypted line differs
 
 # show the plain text in diffs instead
 echo "*.enc diff=ssenc" > .gitattributes
-git config diff.ssenc.textconv "ssenc decrypt --password-file $HOME/password.txt -i"
+git config diff.ssenc.textconv "$S decrypt --password-file $HOME/password.txt -i"
 git diff
 ```
 
