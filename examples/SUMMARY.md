@@ -22,8 +22,8 @@ Encrypt a text from standard input with a password and decrypt it.
 export SSENC_PASSWORD="$(openssl rand -base64 24)"
 echo "${SSENC_PASSWORD=}"
 
-echo "my first secret" | $S encrypt > secret.enc
-$S decrypt < secret.enc                      # my first secret
+echo "my first secret" | $S encrypt > s/secret.enc
+$S decrypt < s/secret.enc                      # my first secret
 ```
 
 ## case-002-cli_file_with_password
@@ -33,14 +33,14 @@ Encrypt and decrypt a file; the password is read from a file.
 ```sh
 openssl rand -base64 24 > s/password.txt
 
-$S encrypt --password-file s/password.txt -i xx.ts      -o xx.ts.enc
-$S decrypt --password-file s/password.txt -i xx.ts.enc  -o xx.ts.decoded
-diff xx.ts xx.ts.decoded 
-$S decrypt --password-file s/password.txt -i xx.ts.enc      # to standard output
+$S encrypt --password-file s/password.txt -i xx.ts      -o s/xx.ts.enc
+$S decrypt --password-file s/password.txt -i s/xx.ts.enc  -o s/xx.ts.decoded
+diff xx.ts s/xx.ts.decoded 
+$S decrypt --password-file s/password.txt -i s/xx.ts.enc      # to standard output
 
-$S encrypt --password-file s/password.txt -i xx.ts.decoded -o xx.ts.decoded   # in place: same file in and out
-$S decrypt --password-file s/password.txt -i xx.ts.decoded -o xx.ts.decoded 
-diff xx.ts xx.ts.decoded 
+$S encrypt --password-file s/password.txt -i s/xx.ts.decoded -o s/xx.ts.decoded   # in place: same file in and out
+$S decrypt --password-file s/password.txt -i s/xx.ts.decoded -o s/xx.ts.decoded 
+diff xx.ts s/xx.ts.decoded 
 ```
 
 ## case-003-cli_binary_file_blob_mode
