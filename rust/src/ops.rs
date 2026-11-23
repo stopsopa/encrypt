@@ -82,7 +82,8 @@ impl std::fmt::Debug for Key {
 /// Options of [`encrypt`]. `None` means "the default", or with `previous` "as in `previous`".
 #[derive(Debug, Clone, Default)]
 pub struct EncryptOptions {
-    /// `Lines` (default) encrypts line by line; `Blob` encrypts the input as a whole.
+    /// `Lines` (default) encrypts line by line; `Blob` encrypts the input as a whole;
+    /// `Auto` picks one of the two with [`detect_mode`] (with `previous`: its mode is kept).
     pub mode: Option<Mode>,
     /// Lines mode: keep leading and trailing spaces/tabs of every line in clear. Default true.
     pub preserve_whitespace: Option<bool>,
@@ -504,6 +505,17 @@ fn decrypt_blob(dek: &[u8; 32], chunk: usize, body: &[u8]) -> Result<Vec<u8>, Er
 // operations (SPEC.md section 5)
 // ---------------------------------------------------------------------------------------
 
+/// The mode that `Mode::Auto` picks for `input`: `Mode::Lines` when it is text, which
+/// means it has no NUL byte and is valid UTF-8 (so also when it is empty), otherwise
+/// `Mode::Blob`. The whole input is examined.
+pub fn detect_mode(input: &[u8]) -> Mode {
+    if !input.contains(&0) && std::str::from_utf8(input).is_ok() {
+        Mode::Lines
+    } else {
+        Mode::Blob
+    }
+}
+
 struct Layout {
     mode: Mode,
     ws: bool,
@@ -532,6 +544,7 @@ fn assemble(dek: &[u8; 32], slot_lines: &[String], l: &Layout, plain: &[u8]) -> 
     let body = match l.mode {
         Mode::Lines => encrypt_lines(dek, l.ws, pad, plain),
         Mode::Blob => encrypt_blob(dek, chunk, plain),
+        Mode::Auto => unreachable!("auto is resolved in encrypt()"),
     };
     let mut out = String::with_capacity(body.len() + 256);
     out.push_str(&header_line);
@@ -560,6 +573,7 @@ fn decrypt_parsed(file: &ParsedFile, dek: &[u8; 32]) -> Result<Vec<u8>, Error> {
     match file.mode {
         Mode::Lines => decrypt_lines(dek, file.pad, file.body),
         Mode::Blob => decrypt_blob(dek, file.chunk, file.body),
+        Mode::Auto => unreachable!("a parsed file is lines or blob"),
     }
 }
 
@@ -572,7 +586,12 @@ pub fn encrypt(input: &[u8], keys: &[Key], opts: &EncryptOptions) -> Result<Stri
     if let Some(previous) = &opts.previous {
         let prev = parse_file(previous)?;
         let dek = open_or_fail(&prev, keys)?;
-        let mode = opts.mode.unwrap_or(prev.mode);
+        // Auto keeps the mode of the previous version: a file must not flip between lines
+        // and blob because of one edit.
+        let mode = match opts.mode {
+            None | Some(Mode::Auto) => prev.mode,
+            Some(mode) => mode,
+        };
         let prev_lines = prev.mode == Mode::Lines;
         let layout = Layout {
             mode,
@@ -587,7 +606,11 @@ pub fn encrypt(input: &[u8], keys: &[Key], opts: &EncryptOptions) -> Result<Stri
         return Ok(assemble(&dek, &prev.slot_lines, &layout, input));
     }
     let layout = Layout {
-        mode: opts.mode.unwrap_or(Mode::Lines),
+        mode: match opts.mode {
+            Some(Mode::Auto) => detect_mode(input),
+            Some(mode) => mode,
+            None => Mode::Lines,
+        },
         ws: opts.preserve_whitespace.unwrap_or(true),
         pad: opts.pad.unwrap_or(16),
         chunk: opts.chunk.unwrap_or(65536),
@@ -674,6 +697,7 @@ pub fn inspect(input: &[u8]) -> Result<InspectResult, Error> {
             chunk: file.chunk,
             slots,
         },
+        Mode::Auto => unreachable!("a parsed file is lines or blob"),
     })
 }
 

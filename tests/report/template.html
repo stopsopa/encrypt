@@ -281,6 +281,15 @@ function suites() {
     html += `<h3>Diff stability</h3><p class="muted small">Row participant encrypts a file; one plaintext line is changed; column participant re-encrypts using the first file as <code>--previous</code>. Exactly one encrypted line may differ, and the row participant must decrypt the result.</p>`
       + pivot(diff, (c) => c.producer, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one);
   }
+  const auto = of("auto");
+  if (auto.length) {
+    const detect = auto.filter((c) => c.id.startsWith("auto."));
+    const keep = auto.filter((c) => c.id.startsWith("auto-keep."));
+    html += `<h3>Mode auto</h3><p class="muted small">With <code>--mode auto</code> an input is encrypted line by line when it is text (no NUL byte, valid UTF-8) and as a blob otherwise. The inputs are in <code>tests/vectors/auto-mode.json</code>; every implementation must pick the same mode and decrypt its own result.</p>`
+      + pivot(detect, (c) => c.case + " · " + c.mode, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one)
+      + `<p class="small" style="margin-top:12px">An existing file keeps its mode: the row participant encrypts, the column participant re-encrypts different content with <code>--mode auto</code> and the first file as <code>--previous</code>. Each cell counts both directions (lines file then binary content, blob file then text content).</p>`
+      + pivot(keep, (c) => c.producer, (c) => c.consumer, (cell) => ({ suite: "auto", producer: cell[0].producer, consumer: cell[0].consumer, q: "auto-keep." }), one);
+  }
   return html + `</section>`;
 }
 

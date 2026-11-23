@@ -4,7 +4,7 @@
 //   stage 1  server participants encrypt every case  -> out/artifacts/<producer>/<case>.enc
 //   stage 2  the browser encrypts every case         -> out/artifacts/browser-js/<case>.enc
 //   stage 3  every participant decrypts every file
-//   stage 4  vectors, rekey, diff stability, negative tests
+//   stage 4  vectors, rekey, diff stability, negative tests, mode auto
 //
 // Writes out/checks.json (everything that is supposed to run, written BEFORE running, so
 // the report can show a check that never produced a result as "missing"), out/results.jsonl
@@ -21,7 +21,7 @@ import { CASES } from "./lib/cases.ts";
 import { FIXTURES, writeFixtures } from "./lib/fixtures.ts";
 import { startParticipants } from "./lib/participants.ts";
 import { crossChecks, encryptChecks } from "./stages/cross.ts";
-import { diffChecks, inspectChecks, negativeChecks, rekeyChecks, vectorChecks } from "./stages/extra.ts";
+import { autoChecks, diffChecks, inspectChecks, negativeChecks, rekeyChecks, vectorChecks } from "./stages/extra.ts";
 
 timestampConsole();
 
@@ -159,13 +159,14 @@ try {
       about: "Every implementation decrypts every file saved in stages 1 and 2, whoever made it. The output must be byte-identical to the original input.",
     },
     {
-      name: "STAGE 4: vectors, rekey, diff stability, refusals",
-      about: "Committed reference files must decrypt and re-encrypt to identical bytes; A encrypts, B changes the key, C decrypts; one changed input line must change one encrypted line; wrong keys and damaged files must be refused with the right error.",
+      name: "STAGE 4: vectors, rekey, diff stability, refusals, mode auto",
+      about: "Committed reference files must decrypt and re-encrypt to identical bytes; A encrypts, B changes the key, C decrypts; one changed input line must change one encrypted line; wrong keys and damaged files must be refused with the right error; with --mode auto everyone must pick the same mode for the same input.",
       checks: [
         ...(want("vectors") ? [...vectorChecks(participants.all), ...inspectChecks(participants.all)] : []),
         ...(want("rekey") ? rekeyChecks(participants.all) : []),
         ...(want("diff") ? diffChecks(participants.all) : []),
         ...(want("negative") ? negativeChecks(participants.all) : []),
+        ...(want("auto") ? autoChecks(participants.all) : []),
       ],
       concurrency: 24,
     },

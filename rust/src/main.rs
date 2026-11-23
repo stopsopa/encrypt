@@ -6,7 +6,7 @@ use std::io::{IsTerminal, Read, Write};
 const IMPL: &str = "rust";
 
 const USAGE: &str = "usage:
-  ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+  ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
                 [--seal] [--previous FILE | --fresh] KEYS [-i IN] [-o OUT]
   ssenc decrypt KEY [-i IN] [-o OUT]
   ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
@@ -271,7 +271,8 @@ fn parse_args(cmd: &str, argv: &[String]) -> Result<Args, Failure> {
                 a.opts.mode = Some(match value()?.as_str() {
                     "lines" => Mode::Lines,
                     "blob" => Mode::Blob,
-                    _ => return Err(usage("--mode must be lines or blob")),
+                    "auto" => Mode::Auto,
+                    _ => return Err(usage("--mode must be lines, blob or auto")),
                 });
             }
             "--no-preserve-ws" => {

@@ -22,7 +22,9 @@ mod ssh;
 mod util;
 
 pub use crate::format::{Kdf, KdfParams, Mode};
-pub use crate::ops::{decrypt, encrypt, inspect, rekey, EncryptOptions, InspectResult, Key, RekeyOptions, SlotInfo};
+pub use crate::ops::{
+    decrypt, detect_mode, encrypt, inspect, rekey, EncryptOptions, InspectResult, Key, RekeyOptions, SlotInfo,
+};
 pub use crate::ssh::{ssh_fingerprint, ssh_key_type, ssh_parse_public_key, SshSigner};
 pub use crate::util::{Error, ErrorKind};
 

@@ -7,7 +7,7 @@ import type { Key, EncryptOptions } from "./ssenc.node.ts";
 const IMPL = import.meta.url.endsWith(".ts") ? "node-ts" : "node-js";
 
 const USAGE = `usage:
-  ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+  ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
                 [--seal] [--previous FILE | --fresh] KEYS [-i IN] [-o OUT]
   ssenc decrypt KEY [-i IN] [-o OUT]
   ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
@@ -114,7 +114,7 @@ async function main(argv: string[]): Promise<void> {
       case "--mode": {
         only("encrypt");
         const v = value();
-        if (v !== "lines" && v !== "blob") usage("--mode must be lines or blob");
+        if (v !== "lines" && v !== "blob" && v !== "auto") usage("--mode must be lines, blob or auto");
         opts.mode = v;
         break;
       }

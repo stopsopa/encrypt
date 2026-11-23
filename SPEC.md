@@ -178,6 +178,12 @@ be shorter), decrypt each with its index and `final` set only for the last recor
   ssenc1 text): the first given key that opens `previous` yields its DEK (AUTH if none
   does); its slot lines are copied verbatim and no new slots are made; header options not
   given explicitly are taken from the `previous` header.
+  Mode `auto` is not a third format, only a way to choose between the two: without
+  `previous` the mode is `lines` when the plaintext contains no 0x00 byte and is
+  well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF;
+  the empty plaintext counts as text), otherwise `blob`; the whole plaintext is examined.
+  With `previous`, `auto` means the mode of `previous`. Test inputs:
+  `tests/vectors/auto-mode.json`.
 - **decrypt(text, key)** — a password is tried against every `pw` slot in order; an ssh key
   against every `ssh` slot whose fingerprint equals the key's. The first slot whose unwrap
   authenticates gives the DEK. No such slot → AUTH.
@@ -210,7 +216,7 @@ output on error.
 ## 7. CLI
 
 ```
-ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
               [--seal] [--previous FILE | --fresh] KEYS [-i IN] [-o OUT]
 ssenc decrypt KEY [-i IN] [-o OUT]
 ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]

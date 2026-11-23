@@ -54,6 +54,26 @@ ls -la s/i*
 $S encrypt --mode blob --chunk 16384 --password-file s/password.txt -i photo.bin -o photo.bin.enc
 ```
 
+`--mode auto` decides by itself: lines for text (no NUL byte, valid UTF-8), blob for anything else.
+
+```sh
+$S encrypt --mode auto --password-file s/password.txt -i s/i.jpg -o s/i.jpg.txt
+head -n 1 s/i.jpg.txt                           # #ssenc1 blob chunk=65536
+
+printf "line one\nline two\n" > s/notes.txt
+$S encrypt --mode auto --password-file s/password.txt -i s/notes.txt -o s/notes.txt.enc
+head -n 1 s/notes.txt.enc                       # #ssenc1 lines ws=1 pad=16
+
+# an existing output file keeps its mode, whatever the new content is ...
+printf "line one\nline \377 two\n" > s/notes.txt
+$S encrypt --mode auto --password-file s/password.txt -i s/notes.txt -o s/notes.txt.enc
+head -n 1 s/notes.txt.enc                       # still lines, and only one line changed
+
+# ... unless --fresh starts over
+$S encrypt --mode auto --fresh --password-file s/password.txt -i s/notes.txt -o s/notes.txt.enc
+head -n 1 s/notes.txt.enc                       # #ssenc1 blob chunk=65536
+```
+
 ## case-004-cli_inspect_without_key
 
 See how a file was encrypted, without having the key.
@@ -271,7 +291,7 @@ echo "$encrypted" | ssenc_decrypt
 
 ## case-018-lib_files_text_and_binary
 
-Text file line by line, binary file as a blob, `inspect`.
+Text file line by line, binary file as a blob, `inspect`, mode `auto`.
 
 ```ts
 const config = await encrypt(readFileSync("config.yml"), key);                    // lines mode
@@ -280,6 +300,10 @@ const small = await encrypt(readFileSync("photo.bin"), key, { mode: "blob", chun
 
 inspect(photo);                          // { format, mode, chunk, slots, ... } without a key
 const back = await decrypt(photo, key);  // Uint8Array
+
+detectMode(readFileSync("photo.bin"));                                            // "blob"
+const auto = await encrypt(readFileSync("config.yml"), key, { mode: "auto" });    // lines: it is text
+const next = await encrypt(newContent, key, { mode: "auto", previous: auto });    // keeps the mode of `auto`
 ```
 
 ```rust
@@ -288,12 +312,18 @@ let photo = encrypt(&fs::read("photo.bin")?, &[key.clone()], &blob)?;
 
 println!("{}", inspect(photo.as_bytes())?.to_json());
 let back = decrypt(photo.as_bytes(), &key)?;
+
+assert_eq!(detect_mode(&fs::read("photo.bin")?), Mode::Blob);
+let auto = EncryptOptions { mode: Some(Mode::Auto), ..Default::default() };
+let config = encrypt(&fs::read("config.yml")?, &[key.clone()], &auto)?;           // lines: it is text
 ```
 
 ```sh
 ssenc_encrypt --mode blob --password-file s/password.txt -i photo.bin -o photo.bin.enc
 ssenc_inspect -i photo.bin.enc
 ssenc_decrypt --password-file s/password.txt -i photo.bin.enc -o photo.bin
+
+ssenc_encrypt --mode auto --password-file s/password.txt -i config.yml -o config.yml.enc   # lines: it is text
 ```
 
 ## case-019-lib_options_and_stable_updates

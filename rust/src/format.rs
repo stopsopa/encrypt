@@ -89,6 +89,9 @@ pub(crate) fn parse_kdf(kdf: Option<&Kdf>) -> Result<KdfParams, Error> {
 pub enum Mode {
     Lines,
     Blob,
+    /// Only as an option of `encrypt`: lines for text, blob for anything else (see
+    /// [`crate::detect_mode`]). An encrypted file is always `Lines` or `Blob`.
+    Auto,
 }
 
 impl Mode {
@@ -96,6 +99,7 @@ impl Mode {
         match self {
             Mode::Lines => "lines",
             Mode::Blob => "blob",
+            Mode::Auto => "auto",
         }
     }
 }
@@ -131,6 +135,7 @@ pub(crate) fn header_line_for(mode: Mode, ws: bool, pad: usize, chunk: usize) ->
     match mode {
         Mode::Lines => format!("#ssenc1 lines ws={} pad={}", ws as u8, pad),
         Mode::Blob => format!("#ssenc1 blob chunk={chunk}"),
+        Mode::Auto => unreachable!("auto is resolved to lines or blob before a header is written"),
     }
 }
 

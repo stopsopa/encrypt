@@ -17,7 +17,7 @@ Other documents: [TypeScript library](typescript.md) · [Rust library](rust.md) 
 ## Commands
 
 ```
-ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
               [--seal] [--previous FILE | --fresh] KEYS [-i IN] [-o OUT]
 ssenc decrypt KEY [-i IN] [-o OUT]
 ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
@@ -54,12 +54,13 @@ export SSENC_PASSWORD='correct horse battery staple'
 
 ssenc encrypt -i config.yml -o config.yml.enc            # line by line (default)
 ssenc encrypt --mode blob -i photo.jpg -o photo.jpg.enc  # any bytes, as a whole
+ssenc encrypt --mode auto -i "$file" -o "$file.enc"      # lines for text, blob for anything else
 cat notes.txt | ssenc encrypt > notes.txt.enc            # stdin -> stdout
 ```
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--mode lines\|blob` | `lines` | `lines`: every input line becomes one encrypted line. `blob`: the input is encrypted as a whole. |
+| `--mode lines\|blob\|auto` | `lines` | `lines`: every input line becomes one encrypted line. `blob`: the input is encrypted as a whole. `auto`: `lines` for text, `blob` for anything else (see below). |
 | `--no-preserve-ws` | off | Lines mode: also encrypt leading and trailing spaces/tabs. By default they stay as they are, so indentation remains visible. |
 | `--pad N` | `16` | Lines mode: pad each line to a multiple of N bytes; `0` disables. |
 | `--chunk N` | `65536` | Blob mode: chunk size in bytes. |
@@ -67,6 +68,26 @@ cat notes.txt | ssenc encrypt > notes.txt.enc            # stdin -> stdout
 | `--seal` | off | Lines mode: add a checksum over the whole file so removed, added or reordered lines are detected. |
 | `--previous FILE` | — | Reuse the data key of an earlier encrypted version: unchanged lines stay identical. |
 | `--fresh` | off | Do not reuse an existing output file (see below). |
+
+### `--mode auto`: text or binary?
+
+For encrypting many files of unknown kind with one command. The input counts as text, and
+is encrypted line by line, when it contains no NUL byte and is valid UTF-8; an empty input
+is text too. Everything else (images, archives, UTF-16 or Latin-1 text) is encrypted as a
+blob. The whole input is examined, not only its beginning.
+
+```sh
+for f in secrets/*; do ssenc encrypt --mode auto -i "$f" -o "encrypted/$(basename "$f").enc"; done
+```
+
+- A wrong guess never loses data: both modes take any bytes and `decrypt` reads the mode
+  from the file. It only costs diff-friendliness (text taken for binary) or a little size.
+- **An existing file keeps its mode.** When the output file exists (or `--previous` is
+  given), `auto` means "as in that file" and nothing is detected, so one stray byte pasted
+  into a config file does not turn its one-line diffs into a full rewrite. `--fresh`
+  detects again.
+- With `--seal`, an input that turns out to be binary is refused (exit code 1): a seal
+  exists only in lines mode.
 
 ### Updating a file: only changed lines change
 

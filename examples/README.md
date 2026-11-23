@@ -49,7 +49,7 @@ when they end. Your own agent is never used: the scripts unset `SSH_AUTH_SOCK` f
 |---|---|
 | [001](case-001-cli_text_with_password) | Encrypt a text from standard input with a password, decrypt it, heredoc |
 | [002](case-002-cli_file_with_password) | Encrypt and decrypt a file, password from a file, in place |
-| [003](case-003-cli_binary_file_blob_mode) | Binary file to ASCII text and back (`--mode blob`, `--chunk`) |
+| [003](case-003-cli_binary_file_blob_mode) | Binary file to ASCII text and back (`--mode blob`, `--chunk`); `--mode auto` |
 | [004](case-004-cli_inspect_without_key) | `inspect`: mode, settings and key slots without a key |
 | [005](case-005-cli_update_changes_only_edited_lines) | Re-encrypt an edited file so that only the edited line changes (`--previous`, `--fresh`) |
 | [006](case-006-cli_whitespace_and_padding) | `--no-preserve-ws` and `--pad` |
@@ -69,7 +69,7 @@ when they end. Your own agent is never used: the scripts unset `SSH_AUTH_SOCK` f
 | Case | Shows |
 |---|---|
 | [017](case-017-lib_text_with_password) | Encrypt and decrypt a text; the JavaScript and browser builds |
-| [018](case-018-lib_files_text_and_binary) | Text file line by line, binary file as a blob, `inspect` |
+| [018](case-018-lib_files_text_and_binary) | Text file line by line, binary file as a blob, `inspect`, mode `auto` |
 | [019](case-019-lib_options_and_stable_updates) | Every option of `encrypt`; updates that change only the edited lines |
 | [020](case-020-lib_errors_by_kind) | Every kind of error and how a program reacts to it |
 | [021](case-021-lib_rekey_replace_keys) | `rekey`, with or without a new data key, several new keys |

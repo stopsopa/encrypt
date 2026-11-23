@@ -840,8 +840,11 @@ type SshKey = {
 type Key = PasswordKey | SshKey;
 
 type EncryptOptions = {
-  /** "lines" (default) encrypts line by line; "blob" encrypts the input as a whole. */
-  mode?: "lines" | "blob";
+  /**
+   * "lines" (default) encrypts line by line; "blob" encrypts the input as a whole; "auto"
+   * picks one of the two with detectMode() (with `previous`: its mode is kept).
+   */
+  mode?: "lines" | "blob" | "auto";
   /** Lines mode: keep leading and trailing spaces/tabs of every line in clear. Default true. */
   preserveWhitespace?: boolean;
   /** Lines mode: pad every line to a multiple of this many bytes; 0 disables. Default 16. */
@@ -1123,8 +1126,29 @@ async function decryptBlob(dek: Uint8Array, chunk: number, body: Uint8Array): Pr
 
 type Layout = { mode: "lines" | "blob"; ws: boolean; pad: number; chunk: number; seal: boolean };
 
+/**
+ * The mode that `mode: "auto"` picks for `input`: "lines" when it is text, which means it
+ * has no NUL byte and is valid UTF-8 (so also when it is empty), otherwise "blob". The
+ * whole input is examined.
+ */
+function detectMode(input: Uint8Array | string): "lines" | "blob" {
+  const bytes = toBytes(input);
+  if (bytes.includes(0)) return "blob";
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return "lines";
+  } catch {
+    return "blob";
+  }
+}
+
+function checkMode(mode: unknown): void {
+  if (mode !== undefined && mode !== "lines" && mode !== "blob" && mode !== "auto") {
+    throw new SsencError("USAGE", "mode must be 'lines', 'blob' or 'auto'");
+  }
+}
+
 function checkLayout(l: Layout): void {
-  if (l.mode !== "lines" && l.mode !== "blob") throw new SsencError("USAGE", "mode must be 'lines' or 'blob'");
   if (!Number.isInteger(l.pad) || l.pad < 0 || l.pad > 4096) throw new SsencError("USAGE", "pad must be an integer from 0 to 4096");
   if (!Number.isInteger(l.chunk) || l.chunk < 1 || l.chunk > 1048576) throw new SsencError("USAGE", "chunk must be an integer from 1 to 1048576");
   if (l.seal && l.mode !== "lines") throw new SsencError("USAGE", "seal is only available in lines mode");
@@ -1153,10 +1177,13 @@ function keyList(key: Key | Key[]): Key[] {
 async function encrypt(input: Uint8Array | string, key: Key | Key[], options: EncryptOptions = {}): Promise<string> {
   const plain = toBytes(input);
   const keys = keyList(key);
+  checkMode(options.mode);
   if (options.previous !== undefined) {
     const prev = parseFile(toBytes(options.previous));
     const dek = await openOrFail(prev, keys);
-    const mode = options.mode ?? prev.mode;
+    // Auto keeps the mode of the previous version: a file must not flip between lines and
+    // blob because of one edit.
+    const mode = options.mode === undefined || options.mode === "auto" ? prev.mode : options.mode;
     const layout: Layout = {
       mode,
       ws: options.preserveWhitespace ?? (prev.mode === "lines" ? prev.ws : true),
@@ -1168,7 +1195,7 @@ async function encrypt(input: Uint8Array | string, key: Key | Key[], options: En
     return assemble(dek, prev.slotLines, layout, plain);
   }
   const layout: Layout = {
-    mode: options.mode ?? "lines",
+    mode: options.mode === "auto" ? detectMode(plain) : options.mode ?? "lines",
     ws: options.preserveWhitespace ?? true,
     pad: options.pad ?? 16,
     chunk: options.chunk ?? 65536,
@@ -1229,7 +1256,7 @@ const VERSION = "0.1.0";
 // public API
 // ---------------------------------------------------------------------------------------
 
-export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, setKdfCacheSize, VERSION, BUILD };
+export { SsencError, encrypt, decrypt, decryptToString, rekey, inspect, detectMode, setKdfCacheSize, VERSION, BUILD };
 export { sshParsePublicKey, sshFingerprint, sshKeyType };
 export type { SsencErrorKind, Key, PasswordKey, SshKey, SshSigner, EncryptOptions, RekeyOptions, InspectResult, SlotInfo, KdfParams };
 

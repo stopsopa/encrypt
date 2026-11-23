@@ -63,7 +63,7 @@ let opts = EncryptOptions { mode: Some(Mode::Blob), ..Default::default() };
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `mode` | `Option<Mode>` | `Mode::Lines` | `Lines`: every input line becomes one encrypted line. `Blob`: the input is encrypted as a whole (binary data, or when the line structure must not show). |
+| `mode` | `Option<Mode>` | `Mode::Lines` | `Lines`: every input line becomes one encrypted line. `Blob`: the input is encrypted as a whole (binary data, or when the line structure must not show). `Auto`: what `detect_mode(input)` says; with `previous`, the mode of `previous`. |
 | `preserve_whitespace` | `Option<bool>` | `true` | Lines mode: leading and trailing spaces/tabs of each line stay as they are. `false` encrypts the whole line. Line endings are always kept. |
 | `pad` | `Option<u64>` (0–4096) | `16` | Lines mode: pad each line to a multiple of this many bytes, so the encrypted length reveals only a size bucket. `0` disables. |
 | `chunk` | `Option<u64>` (1–1048576) | `65536` | Blob mode: chunk size in bytes. |
@@ -124,6 +124,23 @@ pub enum SlotInfo {
 ```
 
 `InspectResult::to_json()` gives the one-line JSON that `ssenc inspect` prints.
+
+### `detect_mode(input: &[u8]) -> Mode`
+
+What `Mode::Auto` picks: `Mode::Lines` when the input is text, which means it has no NUL
+byte and is valid UTF-8 (an empty input is text), otherwise `Mode::Blob`. The whole input
+is examined. A wrong guess never loses data, both modes take any bytes.
+
+```rust
+use ssenc::{detect_mode, encrypt, EncryptOptions, Mode};
+
+assert_eq!(detect_mode(b"host: db\n"), Mode::Lines);
+assert_eq!(detect_mode(&[0x89, b'P', b'N', b'G', 0]), Mode::Blob);
+let enc = encrypt(&bytes, &keys, &EncryptOptions { mode: Some(Mode::Auto), ..Default::default() })?;
+```
+
+`Mode::Auto` exists only as an option of `encrypt`; an encrypted file is always `Lines`
+or `Blob`.
 
 ### SSH helpers
 

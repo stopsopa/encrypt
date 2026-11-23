@@ -34,3 +34,14 @@ echo "${0}: blob mode with a smaller chunk size"
 run 'ssenc_encrypt --mode blob --chunk 4096 --password-file tmp/password.txt -i tmp/photo.bin -o tmp/small.enc'
 run 'ssenc_inspect -i tmp/small.enc'
 check "the file with small chunks decrypts to the original" 'ssenc_decrypt --password-file tmp/password.txt -i tmp/small.enc | cmp - tmp/photo.bin'
+
+echo "${0}: --mode auto: lines for text (no NUL byte, valid UTF-8), blob for anything else"
+run 'ssenc_encrypt --mode auto --password-file tmp/password.txt -i tmp/config.yml -o tmp/config.auto.enc'
+run 'ssenc_encrypt --mode auto --password-file tmp/password.txt -i tmp/photo.bin -o tmp/photo.auto.enc'
+run 'head -n 1 tmp/config.auto.enc tmp/photo.auto.enc'
+check "the text file was encrypted line by line" 'head -n 1 tmp/config.auto.enc | grep -q "^#ssenc1 lines "'
+check "the binary file became a blob" 'head -n 1 tmp/photo.auto.enc | grep -q "^#ssenc1 blob "'
+
+echo "${0}: with an existing output file, auto keeps its mode whatever the new content is"
+run 'ssenc_encrypt --mode auto --password-file tmp/password.txt -i tmp/photo.bin -o tmp/config.auto.enc'
+check "still a lines file" 'head -n 1 tmp/config.auto.enc | grep -q "^#ssenc1 lines "'

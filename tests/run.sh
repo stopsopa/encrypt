@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Entry point of the cross-implementation tests.
 #
-#   tests/run.sh [--only rust,bash,node-ts,node-js,browser-js] [--skip-unit] [--suite cross,vectors,rekey,diff,negative] [--verbose]
+#   tests/run.sh [--only rust,bash,node-ts,node-js,browser-js] [--skip-unit] [--suite cross,vectors,rekey,diff,negative,auto] [--verbose]
 #
 # The unit test suites' own output is shown live. --verbose additionally prints one line for
 # every passing check of the other stages.

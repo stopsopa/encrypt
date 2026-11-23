@@ -26,6 +26,8 @@ const builds: [string, Lib][] = [
   ["ssenc.browser.ts", browserTs as unknown as Lib], ["ssenc.browser.js", browserJs as Lib],
 ];
 const CHEAP = "m=64,t=1,p=1";
+const autoVectors: { name: string; hex: string; mode: "lines" | "blob" }[] =
+  JSON.parse(readFileSync(join(vectorsDir, "auto-mode.json"), "utf8"));
 
 test("hkdf32 vectors", async () => {
   for (const v of prim.hkdf32) {
@@ -103,6 +105,43 @@ for (const [name, lib] of builds) {
     assert.deepEqual(lb.map((l, i) => l === la[i]), [true, true, true, false, true, true, true]);
     const fresh = await lib.encrypt("x\ny\nx\nz\n", key, { kdf: CHEAP });
     assert.notEqual(fresh.split("\n")[2], la[2]);
+  });
+
+  test(name + ": mode auto picks lines for text and blob for anything else", async () => {
+    const key = { type: "password" as const, password: "pw" };
+    const auto = { mode: "auto", kdf: "m=8,t=1,p=1" } as const;
+    assert.ok(autoVectors.filter((v) => v.mode === "lines").length >= 15 && autoVectors.filter((v) => v.mode === "blob").length >= 20);
+    for (const v of autoVectors) {
+      const input = unhex(v.hex);
+      assert.equal(lib.detectMode(input), v.mode, v.name + " detectMode");
+      const enc = await lib.encrypt(input, key, auto);
+      assert.equal(lib.inspect(enc).mode, v.mode, v.name + " encrypt");
+      assert.deepEqual(new Uint8Array(await lib.decrypt(enc, key)), input, v.name + " round trip");
+    }
+    // a string is examined as its UTF-8 bytes
+    assert.equal(lib.detectMode("zażółć ∞ 😀\n"), "lines");
+    assert.equal(lib.detectMode("a\0b"), "blob");
+
+    // with previous the mode of the previous version is kept, whatever the new content is
+    const text = "a\nb\n", binary = Uint8Array.from([97, 10, 255, 0, 10]);
+    const v1 = await lib.encrypt(text, key, auto);
+    const v2 = await lib.encrypt(binary, key, { mode: "auto", previous: v1 });
+    assert.equal(lib.inspect(v2).mode, "lines");
+    assert.deepEqual(new Uint8Array(await lib.decrypt(v2, key)), binary);
+    const l1 = v1.split("\n"), l2 = v2.split("\n");
+    assert.equal(l1.filter((l, i) => l !== l2[i]).length, 1);
+    const b1 = await lib.encrypt(binary, key, auto);
+    assert.equal(lib.inspect(b1).mode, "blob");
+    assert.equal(lib.inspect(await lib.encrypt(text, key, { mode: "auto", previous: b1 })).mode, "blob");
+    assert.equal(lib.inspect(await lib.encrypt(text, key, { mode: "lines", previous: b1 })).mode, "lines");
+
+    // auto + seal: fine for text, refused when the input turns out to be binary
+    assert.equal((lib.inspect(await lib.encrypt(text, key, { ...auto, seal: true })) as { seal: boolean }).seal, true);
+    await assert.rejects(lib.encrypt(binary, key, { ...auto, seal: true }), { kind: "USAGE" });
+    // @ts-expect-error not a mode
+    await assert.rejects(lib.encrypt(text, key, { mode: "stream" }), { kind: "USAGE" });
+    // @ts-expect-error not a mode, also not with previous
+    await assert.rejects(lib.encrypt(text, key, { mode: "stream", previous: v1 }), { kind: "USAGE" });
   });
 
   test(name + ": blob, rekey, inspect, errors", async () => {

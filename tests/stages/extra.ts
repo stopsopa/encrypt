@@ -1,4 +1,4 @@
-// Stage 4: known-answer vectors, rekey chains, diff stability, negative tests.
+// Stage 4: known-answer vectors, rekey chains, diff stability, negative tests, mode auto.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Check, KeySpec, OpResult, Participant } from "../lib/common.ts";
@@ -143,6 +143,65 @@ export function diffChecks(all: Participant[]): Check[] {
           return back;
         },
       });
+    }
+  }
+  return checks;
+}
+
+type AutoVector = { name: string; hex: string; mode: "lines" | "blob" };
+const autoVectors: AutoVector[] = JSON.parse(readFileSync(join(VECTORS, "auto-mode.json"), "utf8"));
+const modeOf = (encrypted: Buffer): string => encrypted.toString("latin1").split("\n")[0].split(" ")[1] ?? "?";
+
+/**
+ * --mode auto: every participant must pick the same mode for the same input (lines for
+ * text, blob for anything else), and keep the mode of an existing file.
+ */
+export function autoChecks(all: Participant[]): Check[] {
+  const checks: Check[] = [];
+  const key = { password: PASSWORD };
+  const auto = { mode: "auto", kdf: CHEAP_KDF } as const;
+  for (const p of all) {
+    for (const v of autoVectors) {
+      const input = Buffer.from(v.hex, "hex");
+      checks.push({
+        id: "auto." + p.id + "." + v.name, suite: "auto", title: p.id + " encrypts '" + v.name + "' with mode auto → " + v.mode,
+        producer: p.id, consumer: p.id, case: v.name, mode: "auto → " + v.mode, key: "password",
+        run: async () => {
+          const r = await p.run({ cmd: "encrypt", input, key, opts: auto });
+          if (r.kind !== "OK") return { status: "fail", ms: r.ms, detail: "encrypt failed with " + r.kind + ": " + tail(r.stderr) };
+          if (modeOf(r.output) !== v.mode) return { status: "fail", expected: v.mode, actual: modeOf(r.output), detail: "mode auto picked the wrong mode" };
+          const back = compareOutput(await p.run({ cmd: "decrypt", input: r.output, key }), input);
+          back.ms = r.ms;
+          return back;
+        },
+      });
+    }
+  }
+  const text = Buffer.from("a\nb\n"), binary = Buffer.from([97, 10, 255, 0, 10]);
+  const keeps: { name: string; first: Buffer; then: Buffer; mode: "lines" | "blob" }[] = [
+    { name: "existing-lines-file-then-binary-content", first: text, then: binary, mode: "lines" },
+    { name: "existing-blob-file-then-text-content", first: binary, then: text, mode: "blob" },
+  ];
+  for (const a of all) {
+    for (const b of all) {
+      for (const k of keeps) {
+        checks.push({
+          id: "auto-keep." + k.name + "." + a.id + "." + b.id, suite: "auto",
+          title: "mode auto keeps the mode of an existing file (" + k.mode + "): " + a.id + " encrypts, " + b.id + " re-encrypts",
+          producer: a.id, consumer: b.id, case: k.name, mode: "auto keeps " + k.mode, key: "password",
+          run: async () => {
+            const first = await a.run({ cmd: "encrypt", input: k.first, key, opts: auto });
+            if (first.kind !== "OK") return { status: "fail", detail: "first encrypt by " + a.id + " failed with " + first.kind + ": " + tail(first.stderr) };
+            if (modeOf(first.output) !== k.mode) return { status: "fail", expected: k.mode, actual: modeOf(first.output), detail: "first encrypt picked the wrong mode" };
+            const r = await b.run({ cmd: "encrypt", input: k.then, key, opts: { mode: "auto", previous: first.output } });
+            if (r.kind !== "OK") return { status: "fail", ms: r.ms, detail: "re-encrypt by " + b.id + " failed with " + r.kind + ": " + tail(r.stderr) };
+            if (modeOf(r.output) !== k.mode) return { status: "fail", expected: k.mode, actual: modeOf(r.output), detail: "the mode of the existing file was not kept" };
+            const back = compareOutput(await a.run({ cmd: "decrypt", input: r.output, key }), k.then);
+            back.ms = r.ms;
+            return back;
+          },
+        });
+      }
     }
   }
   return checks;

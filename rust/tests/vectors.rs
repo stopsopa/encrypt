@@ -1,7 +1,7 @@
 //! Known-answer tests against the vectors shared by all implementations (`tests/vectors`).
 
 use ssenc::prim::{argon2id, hkdf32, SivKey};
-use ssenc::{decrypt, encrypt, inspect, EncryptOptions, ErrorKind, Key};
+use ssenc::{decrypt, detect_mode, encrypt, inspect, EncryptOptions, ErrorKind, Key, Mode};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -318,4 +318,93 @@ fn inspect_json_of_vectors() {
     );
     assert!(json("blob-ssh-rsa").starts_with(r#"{"format":"ssenc1","mode":"blob","chunk":"#));
     assert!(json("blob-ssh-rsa").contains(r#""slots":[{"type":"ssh","keyType":"ssh-rsa","fingerprint":"SHA256:"#));
+}
+
+// --- auto-mode.json: what `Mode::Auto` picks, identical in every implementation ----------
+
+#[test]
+fn auto_mode_vectors() {
+    let all = Json::parse(&read(vectors_dir().join("auto-mode.json")));
+    let key = Key::password("pw");
+    let auto = EncryptOptions {
+        mode: Some(Mode::Auto),
+        kdf: Some("m=8,t=1,p=1".into()),
+        ..Default::default()
+    };
+    let (mut lines, mut blobs) = (0, 0);
+    for v in all.arr() {
+        let name = v.get("name").str();
+        let input = v.get("hex").hex();
+        let want = match v.get("mode").str() {
+            "lines" => Mode::Lines,
+            "blob" => Mode::Blob,
+            other => panic!("{name}: unknown mode {other}"),
+        };
+        assert_eq!(detect_mode(&input), want, "{name}: detect_mode");
+        let encrypted =
+            encrypt(&input, std::slice::from_ref(&key), &auto).unwrap_or_else(|e| panic!("{name}: encrypt: {e}"));
+        let header = format!("#ssenc1 {} ", want.as_str());
+        assert!(
+            encrypted.starts_with(&header),
+            "{name}: expected a {} file",
+            want.as_str()
+        );
+        assert_eq!(
+            decrypt(encrypted.as_bytes(), &key).unwrap(),
+            input,
+            "{name}: round trip"
+        );
+        match want {
+            Mode::Lines => lines += 1,
+            _ => blobs += 1,
+        }
+    }
+    assert!(
+        lines >= 15 && blobs >= 20,
+        "only {lines} text and {blobs} binary inputs found"
+    );
+}
+
+#[test]
+fn auto_mode_with_previous_keeps_its_mode() {
+    let key = [Key::password("pw")];
+    let auto = EncryptOptions {
+        mode: Some(Mode::Auto),
+        kdf: Some("m=8,t=1,p=1".into()),
+        ..Default::default()
+    };
+    let (text, binary) = (b"a\nb\n".as_slice(), b"a\n\xff\x00\n".as_slice());
+    let with_previous = |mode: Option<Mode>, previous: &str| EncryptOptions {
+        mode,
+        previous: Some(previous.as_bytes().to_vec()),
+        ..Default::default()
+    };
+
+    // text first, then binary content: the file stays in lines mode, and one line differs
+    let v1 = encrypt(text, &key, &auto).unwrap();
+    assert!(v1.starts_with("#ssenc1 lines "));
+    let v2 = encrypt(binary, &key, &with_previous(Some(Mode::Auto), &v1)).unwrap();
+    assert!(v2.starts_with("#ssenc1 lines "));
+    assert_eq!(decrypt(v2.as_bytes(), &key[0]).unwrap(), binary);
+    let changed = v1.lines().zip(v2.lines()).filter(|(a, b)| a != b).count();
+    assert_eq!(changed, 1, "only the edited line may change");
+
+    // binary first, then text: the file stays a blob
+    let b1 = encrypt(binary, &key, &auto).unwrap();
+    assert!(b1.starts_with("#ssenc1 blob "));
+    let b2 = encrypt(text, &key, &with_previous(Some(Mode::Auto), &b1)).unwrap();
+    assert!(b2.starts_with("#ssenc1 blob "));
+    assert_eq!(decrypt(b2.as_bytes(), &key[0]).unwrap(), text);
+
+    // an explicit mode still wins over the previous version
+    let forced = encrypt(text, &key, &with_previous(Some(Mode::Lines), &b1)).unwrap();
+    assert!(forced.starts_with("#ssenc1 lines "));
+
+    // auto + seal: fine for text, refused when the input turns out to be binary
+    let sealed = EncryptOptions {
+        seal: Some(true),
+        ..auto.clone()
+    };
+    assert!(encrypt(text, &key, &sealed).unwrap().contains("\n#seal "));
+    assert_eq!(encrypt(binary, &key, &sealed).unwrap_err().kind, ErrorKind::Usage);
 }

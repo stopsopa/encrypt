@@ -54,6 +54,7 @@ export SSENC_PASSWORD='…'                       # or --password-file F, or a p
 ssenc encrypt -i config.yml -o config.yml.enc   # lines mode
 ssenc decrypt -i config.yml.enc -o config.yml
 ssenc encrypt --mode blob -i photo.jpg -o photo.jpg.enc
+ssenc encrypt --mode auto -i "$file" -o "$file.enc"   # lines for text, blob for anything else
 
 # after editing config.yml: the existing output is reused, only changed lines differ
 ssenc encrypt -i config.yml -o config.yml.enc
@@ -67,7 +68,7 @@ SSENC_NEW_PASSWORD='…' ssenc rekey -i config.yml.enc -o config.yml.enc
 ssenc inspect -i config.yml.enc                 # mode and key slots, no key needed
 ```
 
-Options: `--no-preserve-ws`, `--pad N`, `--chunk N`, `--kdf default|strong|m=..,t=..,p=..`,
+Options: `--mode lines|blob|auto`, `--no-preserve-ws`, `--pad N`, `--chunk N`, `--kdf default|strong|m=..,t=..,p=..`,
 `--seal`, `--previous FILE`, `--fresh`, `--rewrap-only`. Exit codes: 1 usage, 2 wrong key
 or modified data, 3 malformed input, 4 environment (ssh-agent, unsupported key).
 Everything about the command line: [docs/cli.md](docs/cli.md).
@@ -94,7 +95,7 @@ const plain = await decrypt(next, key);                               // Uint8Ar
 await encrypt(bytes, { type: "ssh", publicKey: pubFileContent }, { mode: "blob" });
 ```
 
-Options of `encrypt`: `mode`, `preserveWhitespace`, `pad`, `chunk`, `kdf`, `previous`, `seal`.
+Options of `encrypt`: `mode` (`"lines"`, `"blob"`, `"auto"`), `preserveWhitespace`, `pad`, `chunk`, `kdf`, `previous`, `seal`.
 Full reference, including ssh keys, errors and the browser build: [docs/typescript.md](docs/typescript.md).
 
 **Rust** — crate in [`rust/`](rust): `ssenc::encrypt`, `decrypt`, `rekey`, `inspect`. Full reference: [docs/rust.md](docs/rust.md).

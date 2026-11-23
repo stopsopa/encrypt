@@ -21,7 +21,7 @@ export type ResultKind = "OK" | ErrorKind | "CRASH";
 export type KeySpec = { password?: string; ssh?: string[] };
 
 export type EncryptOpts = {
-  mode?: "lines" | "blob"; ws?: boolean; pad?: number; chunk?: number; kdf?: string; seal?: boolean;
+  mode?: "lines" | "blob" | "auto"; ws?: boolean; pad?: number; chunk?: number; kdf?: string; seal?: boolean;
   previous?: Buffer;
 };
 
@@ -50,7 +50,7 @@ export type Outcome = { status: Status; ms?: number; detail?: string; expected?:
 /** One planned check. Everything except `run` is written to checks.json before anything runs. */
 export type Check = {
   id: string;
-  suite: "unit" | "encrypt" | "cross" | "vectors" | "rekey" | "diff" | "negative";
+  suite: "unit" | "encrypt" | "cross" | "vectors" | "rekey" | "diff" | "negative" | "auto";
   title: string;
   producer?: string;
   consumer?: string;

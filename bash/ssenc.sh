@@ -8,7 +8,7 @@
 # Sourceable library. Public functions (stdin -> stdout unless -i / -o is given; the
 # options are the long flags of the CLI, SPEC.md section 7):
 #
-#     ssenc_encrypt  [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N]
+#     ssenc_encrypt  [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N]
 #                    [--kdf PROFILE] [--seal] [--previous FILE | --fresh]
 #                    [--password-file F] [--ssh-key X]... [-i IN] [-o OUT]
 #     ssenc_decrypt  [--password-file F | --ssh-key X] [-i IN] [-o OUT]
@@ -78,7 +78,7 @@ _ssenc_die() {
 _ssenc_usage_text() {
   cat <<'EOF'
 usage:
-  ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+  ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
                 [--seal] [--previous FILE | --fresh] KEYS [-i IN] [-o OUT]
   ssenc decrypt KEY [-i IN] [-o OUT]
   ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
@@ -1099,9 +1099,34 @@ _ssenc_seal() {
 
 _ssenc_cat_newbody() { cat "$_T/body"; }
 
+# Well-formed UTF-8 sequences of two to four bytes (RFC 3629: no overlong forms, no
+# surrogates, nothing above U+10FFFF), as a regular expression over bytes (LC_ALL=C).
+_RE_UTF8_TAIL=$'[\x80-\xbf]'
+_RE_UTF8=$'[\xc2-\xdf]'"$_RE_UTF8_TAIL|"$'\xe0[\xa0-\xbf]'"$_RE_UTF8_TAIL|"$'[\xe1-\xec\xee\xef]'"$_RE_UTF8_TAIL$_RE_UTF8_TAIL|"
+_RE_UTF8+=$'\xed[\x80-\x9f]'"$_RE_UTF8_TAIL|"$'\xf0[\x90-\xbf]'"$_RE_UTF8_TAIL$_RE_UTF8_TAIL|"
+_RE_UTF8+=$'[\xf1-\xf3]'"$_RE_UTF8_TAIL$_RE_UTF8_TAIL$_RE_UTF8_TAIL|"$'\xf4[\x80-\x8f]'"$_RE_UTF8_TAIL$_RE_UTF8_TAIL"
+
+# _ssenc_detect_mode FILE -> _MODE: what --mode auto picks. "lines" when the file is text,
+# which means it has no NUL byte and is valid UTF-8 (so also when it is empty), otherwise
+# "blob". The whole file is examined.
+_ssenc_detect_mode() {
+  local size
+  size=$(($(wc -c <"$1")))
+  _MODE=blob
+  # a NUL byte: not text
+  (($(tr -d '\000' <"$1" | wc -c) == size)) || return 0
+  _MODE=lines
+  # only ASCII: text
+  (($(tr -d '\000-\177' <"$1" | wc -c) == 0)) && return 0
+  # Remove every well-formed multi-byte sequence; a byte >= 0x80 that is left over was not
+  # part of one. (No sequence contains a newline, so working line by line loses nothing.)
+  (($(sed -E "s/$_RE_UTF8//g" <"$1" | tr -d '\000-\177' | wc -c) == 0)) || _MODE=blob
+  return 0
+}
+
 # _ssenc_check_layout MODE PAD CHUNK SEAL
 _ssenc_check_layout() {
-  [[ $1 == lines || $1 == blob ]] || _ssenc_die USAGE "mode must be 'lines' or 'blob'"
+  [[ $1 == lines || $1 == blob ]] || _ssenc_die USAGE "mode must be 'lines', 'blob' or 'auto'"
   (($2 >= 0 && $2 <= 4096)) || _ssenc_die USAGE "pad must be an integer from 0 to 4096"
   (($3 >= 1 && $3 <= 1048576)) || _ssenc_die USAGE "chunk must be an integer from 1 to 1048576"
   (($4)) && [[ $1 != lines ]] && _ssenc_die USAGE "seal is only available in lines mode"
@@ -1238,7 +1263,7 @@ _ssenc_op() {
       --new-password-file) new_pw_file=$v have_new_pw_file=1 ;;
       --new-ssh-key) new_ssh_keys+=("$v") ;;
       --mode)
-        [[ $v == lines || $v == blob ]] || _ssenc_usage "--mode must be lines or blob"
+        [[ $v == lines || $v == blob || $v == auto ]] || _ssenc_usage "--mode must be lines, blob or auto"
         o_mode=$v
         ;;
       --pad | --chunk)
@@ -1331,7 +1356,10 @@ _ssenc_op() {
         _ssenc_open K_KIND K_VAL
         _AUTH_MESSAGE=
         dek=$_DEK
+        # auto keeps the mode of the previous version: a file must not flip between lines
+        # and blob because of one edit
         mode=${o_mode:-$P_MODE}
+        [[ $mode == auto ]] && mode=$P_MODE
         if [[ -n $o_ws ]]; then ws=$o_ws; elif [[ $P_MODE == lines ]]; then ws=$P_WS; else ws=1; fi
         if [[ -n $o_pad ]]; then pad=$o_pad; elif [[ $P_MODE == lines ]]; then pad=$P_PAD; else pad=16; fi
         if [[ -n $o_chunk ]]; then chunk=$o_chunk; elif [[ $P_MODE == blob ]]; then chunk=$P_CHUNK; else chunk=65536; fi
@@ -1340,6 +1368,10 @@ _ssenc_op() {
         _SLOTS=("${P_SLOTLINE[@]}")
       else
         mode=${o_mode:-lines} ws=${o_ws:-1} pad=${o_pad:-16} chunk=${o_chunk:-65536} seal=${o_seal:-0}
+        if [[ $mode == auto ]]; then
+          _ssenc_detect_mode "$_T/in"
+          mode=$_MODE
+        fi
         _ssenc_check_layout "$mode" "$pad" "$chunk" "$seal"
         _ssenc_parse_kdf "$kdf"
         _ssenc_rand 32

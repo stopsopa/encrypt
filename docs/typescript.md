@@ -63,7 +63,7 @@ Returns the encrypted text: 7-bit ASCII, safe to store in a text file or a URL.
 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `mode` | `"lines" \| "blob"` | `"lines"` | `lines`: every input line becomes one encrypted line. `blob`: the input is encrypted as a whole (use for binary data, or when the line structure must not show). |
+| `mode` | `"lines" \| "blob" \| "auto"` | `"lines"` | `lines`: every input line becomes one encrypted line. `blob`: the input is encrypted as a whole (use for binary data, or when the line structure must not show). `auto`: what `detectMode(input)` says; with `previous`, the mode of `previous`. |
 | `preserveWhitespace` | `boolean` | `true` | Lines mode: leading and trailing spaces/tabs of each line stay as they are, only what is between them is encrypted. `false` encrypts the whole line. Line endings are always kept. |
 | `pad` | `number` (0–4096) | `16` | Lines mode: each line is padded to a multiple of this many bytes before encryption, so the encrypted length reveals only a size bucket. `0` disables. |
 | `chunk` | `number` (1–1048576) | `65536` | Blob mode: chunk size in bytes. |
@@ -124,6 +124,19 @@ inspect(encrypted);
 //   slots: [ { type: "pw", kdf: "argon2id", m: 65536, t: 3, p: 4 } ] }
 // blob:  { format: "ssenc1", mode: "blob", chunk: 65536, slots: [...] }
 // ssh slot: { type: "ssh", keyType: "ssh-ed25519", fingerprint: "SHA256:…" }
+```
+
+### `detectMode(input) → "lines" | "blob"`
+
+What `mode: "auto"` picks: `"lines"` when the input is text, which means it has no NUL
+byte and is valid UTF-8 (an empty input is text), otherwise `"blob"`. The whole input is
+examined. A wrong guess never loses data, both modes take any bytes.
+
+```ts
+detectMode("host: db\n");                    // "lines"
+detectMode(readFileSync("photo.jpg"));       // "blob"
+const enc = await encrypt(bytes, key, { mode: "auto" });
+const next = await encrypt(newBytes, key, { mode: "auto", previous: enc }); // same mode as enc
 ```
 
 ### `setKdfCacheSize(entries)`

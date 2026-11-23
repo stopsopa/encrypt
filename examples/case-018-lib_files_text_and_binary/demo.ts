@@ -2,7 +2,7 @@
 // encrypted files back, look at them without a key, decrypt them.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
-import { decrypt, encrypt, inspect } from "../../typescript/dist/ssenc.node.ts";
+import { decrypt, detectMode, encrypt, inspect } from "../../typescript/dist/ssenc.node.ts";
 
 const key = { type: "password", password: readFileSync("tmp/password.txt", "utf8").trim() } as const;
 
@@ -36,3 +36,16 @@ const small = await encrypt(photo, key, { mode: "blob", chunk: 4096 });
 console.log("chunk 4096:", inspect(small));
 assert.deepEqual(Buffer.from(await decrypt(small, key)), photo);
 console.log("the file with small chunks decrypts to the original as well: ok");
+
+// --- mode "auto": lines for text (no NUL byte, valid UTF-8), blob for anything else ------
+console.log("\ndetectMode:", { config: detectMode(config), photo: detectMode(photo) });
+const configAuto = await encrypt(config, key, { mode: "auto" });
+const photoAuto = await encrypt(photo, key, { mode: "auto" });
+assert.equal(inspect(configAuto).mode, "lines");
+assert.equal(inspect(photoAuto).mode, "blob");
+console.log("mode auto: the text file was encrypted line by line, the binary file as a blob: ok");
+
+// With previous, auto keeps the mode of the previous version whatever the new content is.
+const stillLines = await encrypt(photo.subarray(0, 100), key, { mode: "auto", previous: configAuto });
+assert.equal(inspect(stillLines).mode, "lines");
+console.log("mode auto with previous: the mode of the previous version is kept: ok");

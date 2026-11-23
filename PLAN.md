@@ -253,7 +253,7 @@ option names as long flags). Errors map to the same four kinds everywhere.
 ### 5.2 CLI (`<lang>/bin/ssenc`)
 
 ```
-ssenc encrypt [--mode lines|blob] [--no-preserve-ws] [--pad N] [--kdf P] [--seal]
+ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--kdf P] [--seal]
               [--previous FILE] KEYOPTS [-i IN] [-o OUT]
 ssenc decrypt KEYOPTS [-i IN] [-o OUT]
 ssenc rekey   KEYOPTS --new-password-file F | --new-ssh-key PUB [--rewrap-only] [-i IN] [-o OUT]
