@@ -52,8 +52,26 @@ head -n 4 s/i.jpg.txt
 $S decrypt --password-file s/password.txt -i s/i.jpg.txt -o s/i.decoded.jpg   # no --mode: it is in the file
 cmp s/i.jpg s/i.decoded.jpg && echo identical
 ls -la s/i*
+```
 
-# smaller chunks: every 16384 bytes of the image are sealed separately (default 65536)
+What `--chunk 16384` does: blob mode does not lock the whole file as one piece. It cuts the
+file into pieces of a fixed size and locks each piece separately, each with its own tamper
+seal. `--chunk 16384` sets that piece size to 16384 bytes (16 KiB) instead of the default
+65536 (64 KiB).
+
+- **The 20 KB image `s/i.jpg`:** with the default it is one piece; with `--chunk 16384` it is two.
+- **Security:** the same. Every piece is sealed, and their order and count are checked too.
+- **Size:** each piece adds 16 bytes for its seal, so smaller pieces make the file slightly bigger.
+- **Diffs:** this is the only practical reason to change it. If a few bytes of a binary file
+  are overwritten in place, only the pieces containing them change in the encrypted text, so
+  smaller pieces give smaller git diffs. If bytes are inserted or removed, everything after
+  that point shifts and changes anyway.
+- **Decrypting:** needs no option; the piece size is written in the first line of the file
+  (`#ssenc1 blob chunk=16384`).
+
+For most files the default is fine.
+
+```sh
 $S encrypt --mode blob --chunk 16384 --password-file s/password.txt -i s/i.jpg -o s/i.chunk.txt
 $S inspect -i s/i.jpg.txt
 $S inspect -i s/i.chunk.txt
