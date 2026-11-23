@@ -110,7 +110,7 @@ See how a file was encrypted, without having the key.
 printf "line one\nline two\n" > s/notes.txt
 $S encrypt --fresh --password-file s/password.txt -i s/notes.txt -o s/notes.txt.enc
 
-$S inspect -i s/notes.txt.enc
+$S inspect -i s/notes.txt.enc | jq
 # {"format":"ssenc1","mode":"lines","ws":true,"pad":16,"seal":false,"slots":[{"type":"pw","kdf":"argon2id","m":65536,"t":3,"p":4}]}
 
 $S inspect -i s/notes.txt; echo "exit code $?"     # not an encrypted file: exit code 3
