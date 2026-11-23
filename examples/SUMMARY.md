@@ -84,10 +84,12 @@ $S inspect -i s/i.chunk.txt | jq
 rm -f s/auto.jpg.txt s/auto.txt.enc
 $S encrypt --mode auto --password-file s/password.txt -i s/i.jpg -o s/auto.jpg.txt
 head -n 1 s/auto.jpg.txt                        # #ssenc1 blob chunk=65536
+$S inspect -i s/auto.jpg.txt | jq
 
 printf "line one\nline two\n" > s/auto.txt
 $S encrypt --mode auto --password-file s/password.txt -i s/auto.txt -o s/auto.txt.enc
 head -n 1 s/auto.txt.enc                        # #ssenc1 lines ws=1 pad=16
+$S inspect -i s/auto.txt.enc | jq
 
 # an existing output file keeps its mode, whatever the new content is ...
 cp s/auto.txt.enc s/auto.v1.enc
