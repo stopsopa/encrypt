@@ -18,6 +18,32 @@ type Command = {
 export default (setup: Record<string, Command>): Record<string, Command> => {
   // Commands are defined in the same order as they are shown in the menu.
   let commands: Record<string, Command> = {
+    [`help`]: {
+      command: `
+set -e
+
+cat <<EEE
+
+  🐙 GitHub: $(git ls-remote --get-url origin | awk '{\$1=\$1};1' | tr -d '\\n' | sed -E 's/git@github\\.com:([^/]+)\\/(.+)\\.git/https:\\/\\/github.com\\/\\1\\/\\2/g')
+
+  pages:
+    https://stopsopa.github.io/encrypt/              report of the last test run on CI
+    https://stopsopa.github.io/encrypt/encryptor/    encryptor page
+
+  local:
+    http://127.0.0.1:8080/encryptor/                 encryptor page, after: xx "encryptor serve"
+    tests/out/report/index.html                      report of the last local test run: xx "report open"
+
+  docs:
+    README.md  SPEC.md  docs/cli.md  docs/rust.md  docs/typescript.md
+
+EEE
+`,
+      description: `links and notes about this project`,
+      confirm: false,
+      order: 9,
+    },
+
     // --- everything ---
     [`envverify`]: {
       command: `
