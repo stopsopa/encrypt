@@ -74,8 +74,8 @@ For most files the default is fine.
 
 ```sh
 $S encrypt --mode blob --chunk 16384 --password-file s/password.txt -i s/i.jpg -o s/i.chunk.txt
-$S inspect -i s/i.jpg.txt
-$S inspect -i s/i.chunk.txt
+$S inspect -i s/i.jpg.txt | jq
+$S inspect -i s/i.chunk.txt | jq
 ```
 
 `--mode auto` decides by itself: lines for text (no NUL byte, valid UTF-8), blob for anything else.
