@@ -20,6 +20,7 @@ Encrypt a text from standard input with a password and decrypt it.
 
 ```sh
 export SSENC_PASSWORD="$(openssl rand -base64 24)"
+echo "${SSENC_PASSWORD=}"
 
 echo "my first secret" | $S encrypt > secret.enc
 $S decrypt < secret.enc                      # my first secret
