@@ -16,26 +16,16 @@ const USAGE: &str = "usage:
   KEY/KEYS  --password-file F | env SSENC_PASSWORD | --ssh-key PUBFILE_OR_FINGERPRINT
   NEWKEYS   --new-password-file F | env SSENC_NEW_PASSWORD | --new-ssh-key PUBFILE_OR_FINGERPRINT";
 
-/// Exit code for failures that are none of the four ssenc error kinds (as in the reference CLI).
-const EXIT_INTERNAL: i32 = 70;
-
-enum Failure {
-    Ssenc(Error),
-    Internal(String),
-}
-
-impl From<Error> for Failure {
-    fn from(e: Error) -> Self {
-        Failure::Ssenc(e)
-    }
-}
+/// Every failure of the command is one of the four ssenc error kinds, so every failure has
+/// one of the documented exit codes (1 to 4).
+type Failure = Error;
 
 fn usage(msg: impl AsRef<str>) -> Failure {
-    Failure::Ssenc(Error::new(ErrorKind::Usage, format!("{}\n{}", msg.as_ref(), USAGE)))
+    Error::new(ErrorKind::Usage, format!("{}\n{}", msg.as_ref(), USAGE))
 }
 
 fn plain_usage(msg: String) -> Failure {
-    Failure::Ssenc(Error::new(ErrorKind::Usage, msg))
+    Error::new(ErrorKind::Usage, msg)
 }
 
 fn read_password_file(path: &str) -> Result<Vec<u8>, Failure> {
@@ -337,14 +327,17 @@ fn write_output(out_path: &Option<String>, data: &[u8]) -> Result<(), Failure> {
             out.write_all(data).and_then(|_| out.flush())
         }
     };
-    result.map_err(|e| Failure::Internal(format!("cannot write output: {e}")))
+    result.map_err(|e| plain_usage(format!("cannot write output: {e}")))
 }
 
 fn run(argv: &[String]) -> Result<(), Failure> {
     if argv.first().map(String::as_str) == Some("--version") {
         return write_output(&None, format!("ssenc {IMPL} {VERSION}\n").as_bytes());
     }
-    if argv.is_empty() || argv[0] == "--help" || argv[0] == "-h" {
+    if argv.is_empty() {
+        return Err(usage("no command given"));
+    }
+    if argv[0] == "--help" || argv[0] == "-h" {
         return write_output(&None, format!("{USAGE}\n").as_bytes());
     }
     let cmd = argv[0].as_str();
@@ -404,7 +397,7 @@ fn run(argv: &[String]) -> Result<(), Failure> {
             } else if let (false, Some(out)) = (args.fresh, &args.out_path) {
                 if std::path::Path::new(out).exists() {
                     let existing = std::fs::read(out)
-                        .map_err(|e| Failure::Internal(format!("cannot read existing output file {out}: {e}")))?;
+                        .map_err(|e| plain_usage(format!("cannot read existing output file {out}: {e}")))?;
                     if existing.starts_with(b"#ssenc1 ") {
                         opts.previous = Some(existing);
                         auto_previous = true;
@@ -465,13 +458,9 @@ fn main() {
         .collect();
     let code = match run(&argv) {
         Ok(()) => 0,
-        Err(Failure::Ssenc(e)) => {
+        Err(e) => {
             eprintln!("ssenc: {}: {}", e.kind, e.message);
             e.kind.exit_code()
-        }
-        Err(Failure::Internal(msg)) => {
-            eprintln!("ssenc: internal error: {msg}");
-            EXIT_INTERNAL
         }
     };
     std::process::exit(code);

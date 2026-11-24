@@ -79,7 +79,9 @@ async function main(argv) {
         process.stdout.write("ssenc " + IMPL + " " + VERSION + "\n");
         return;
     }
-    if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+    if (argv.length === 0)
+        usage("no command given");
+    if (argv[0] === "--help" || argv[0] === "-h") {
         process.stdout.write(USAGE + "\n");
         return;
     }
@@ -184,14 +186,26 @@ async function main(argv) {
             throw new SsencError("USAGE", "cannot read input: " + e.message);
         }
     };
-    const writeOutput = (data) => {
-        if (outPath === undefined)
-            process.stdout.write(data);
-        else
-            writeFileSync(outPath, data);
+    // Resolves when the data is written; a failed write (no permission, disk full, closed
+    // pipe) is an error with an exit code, not an unhandled exception.
+    const writeOutput = async (data) => {
+        try {
+            if (outPath !== undefined)
+                writeFileSync(outPath, data);
+            else {
+                await new Promise((resolve, reject) => {
+                    process.stdout.once("error", reject);
+                    process.stdout.write(data, (e) => (e ? reject(e) : resolve()));
+                });
+            }
+        }
+        catch (e) {
+            throw new SsencError("USAGE", "cannot write output: " + e.message);
+        }
     };
     if (cmd === "inspect") {
-        process.stdout.write(JSON.stringify(inspect(readInput())) + "\n");
+        const info = JSON.stringify(inspect(readInput())) + "\n";
+        await writeOutput(info);
         return;
     }
     // keys
@@ -234,7 +248,13 @@ async function main(argv) {
             }
         }
         else if (!fresh && outPath !== undefined && existsSync(outPath)) {
-            const existing = readFileSync(outPath);
+            let existing;
+            try {
+                existing = readFileSync(outPath);
+            }
+            catch (e) {
+                throw new SsencError("USAGE", "cannot read existing output file " + outPath + ": " + e.message);
+            }
             if (existing.subarray(0, 8).toString("latin1") === "#ssenc1 ")
                 opts.previous = existing;
         }
@@ -249,10 +269,10 @@ async function main(argv) {
             }
             throw e;
         }
-        writeOutput(out);
+        await writeOutput(out);
     }
     else if (cmd === "decrypt") {
-        writeOutput(await decrypt(readInput(), keys[0]));
+        await writeOutput(await decrypt(readInput(), keys[0]));
     }
     else {
         const newKeys = [];
@@ -270,7 +290,7 @@ async function main(argv) {
             newKeys.push(sshKeyArg(k));
         if (newKeys.length === 0)
             usage("no new key given: use --new-password-file, SSENC_NEW_PASSWORD or --new-ssh-key");
-        writeOutput(await rekey(readInput(), keys[0], newKeys, { rotateDataKey: !rewrapOnly, kdf }));
+        await writeOutput(await rekey(readInput(), keys[0], newKeys, { rotateDataKey: !rewrapOnly, kdf }));
     }
 }
 const EXIT = { USAGE: 1, AUTH: 2, MALFORMED: 3, ENV: 4 };

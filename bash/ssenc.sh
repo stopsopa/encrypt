@@ -1226,9 +1226,10 @@ _ssenc_read_input() { # [PATH] -> $_T/in
 
 _ssenc_write_output() { # FILE [PATH]
   if [[ -n ${2+x} ]]; then
-    cat "$1" >"$2" 2>/dev/null || _ssenc_die USAGE "cannot write output: $2"
+    # the braces: the shell's own message about a failed redirection is silenced too
+    { cat "$1" >"$2"; } 2>/dev/null || _ssenc_die USAGE "cannot write output: $2"
   else
-    cat "$1"
+    cat "$1" || _ssenc_die USAGE "cannot write output"
   fi
 }
 
@@ -1494,7 +1495,10 @@ ssenc_cli() (
     printf 'ssenc bash %s\n' "$SSENC_VERSION"
     exit 0
   fi
-  if (($# == 0)) || [[ $1 == --help || $1 == -h ]]; then
+  if (($# == 0)); then
+    _ssenc_usage "no command given"
+  fi
+  if [[ $1 == --help || $1 == -h ]]; then
     _ssenc_usage_text
     exit 0
   fi

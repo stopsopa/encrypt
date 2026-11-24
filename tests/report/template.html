@@ -264,7 +264,7 @@ function suites() {
   }
   const neg = of("negative");
   if (neg.length) {
-    html += `<h3>Negative tests</h3><p class="muted small">Each must be refused with exactly this error kind (CLI exit code: USAGE 1, AUTH 2, MALFORMED 3, ENV 4).</p>`
+    html += `<h3>Negative tests</h3><p class="muted small">Each must be refused with exactly this error kind (CLI exit code: USAGE 1, AUTH 2, MALFORMED 3, ENV 4). The <code>cli-…</code> rows are failures of the command itself (arguments, files); they exist only for the command-line participants.</p>`
       + pivot(neg, (c) => c.case + " → " + c.mode, (c) => c.consumer, (cell) => ({ q: cell[0].id }), one);
   }
   const rekey = of("rekey");

@@ -310,6 +310,7 @@ usage() {
   t_code "$name -> USAGE" 1 "$T_SSENC" "$@"
 }
 usage "unknown command" frobnicate
+usage "no arguments at all"
 usage "unknown option" encrypt --frob -i "$I/config"
 usage "option without its value" encrypt -i
 usage "--pad not a number" encrypt --pad x -i "$I/config"
@@ -325,6 +326,9 @@ usage "--kdf out of range" encrypt --kdf m=4,t=1,p=1 -i "$I/config"
 usage "--previous with --fresh" encrypt --previous "$T_TMP/t.enc" --fresh -i "$I/config"
 usage "--previous unreadable" encrypt --previous "$T_TMP/does-not-exist" -i "$I/config"
 usage "input unreadable" encrypt -i "$T_TMP/does-not-exist"
+usage "input is a directory" inspect -i "$T_TMP"
+usage "output unwritable" decrypt -i "$T_TMP/t.enc" -o "$T_TMP/does-not-exist/out"
+usage "output is a directory" decrypt -i "$T_TMP/t.enc" -o "$T_TMP"
 usage "password file unreadable" decrypt --password-file "$T_TMP/does-not-exist" -i "$T_TMP/t.enc"
 usage "ssh key file unreadable" decrypt --ssh-key "$T_TMP/does-not-exist" -i "$T_TMP/t.enc"
 usage "encrypt option given to decrypt" decrypt --pad 4 -i "$T_TMP/t.enc"

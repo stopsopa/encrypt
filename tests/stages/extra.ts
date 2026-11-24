@@ -1,5 +1,6 @@
 // Stage 4: known-answer vectors, rekey chains, diff stability, negative tests, mode auto.
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Check, KeySpec, OpResult, Participant } from "../lib/common.ts";
 import { CHEAP_KDF, NEW_PASSWORD, PASSWORD, VECTORS, compareOutput, expectKind, tail } from "../lib/common.ts";
@@ -266,6 +267,43 @@ export function negativeChecks(all: Participant[]): Check[] {
         id: "negative." + p.id + "." + t.name, suite: "negative", title: p.id + ": " + t.about + " → " + t.expect,
         consumer: p.id, case: t.name, mode: t.expect, key: t.about,
         run: async () => expectKind(await t.run(p), t.expect),
+      });
+    }
+  }
+
+  // Failures of the command itself (arguments, files): a non-zero exit code, the message on
+  // standard error and nothing on standard output. Only the command-line participants.
+  const vectorDir = join(VECTORS, "lines-default");
+  const encrypted = join(vectorDir, "encrypted.txt");
+  const passwordFile = join(mkdtempSync(join(tmpdir(), "ssenc-negative-")), "password.txt");
+  writeFileSync(passwordFile, pw.password + "\n");
+  const missing = join(vectorDir, "no-such-directory", "file");
+  const cli: { name: string; about: string; args: string[] }[] = [
+    { name: "cli-no-command", about: "no arguments at all", args: [] },
+    { name: "cli-unknown-command", about: "unknown command", args: ["frobnicate"] },
+    { name: "cli-unknown-option", about: "unknown option", args: ["inspect", "--frobnicate"] },
+    { name: "cli-input-missing", about: "the input file does not exist", args: ["inspect", "-i", missing] },
+    { name: "cli-input-is-directory", about: "the input is a directory", args: ["inspect", "-i", vectorDir] },
+    { name: "cli-password-file-missing", about: "the password file does not exist", args: ["decrypt", "--password-file", missing, "-i", encrypted] },
+    { name: "cli-no-key", about: "decrypt without any key", args: ["decrypt", "-i", encrypted] },
+    { name: "cli-output-unwritable", about: "the output file cannot be written", args: ["decrypt", "--password-file", passwordFile, "-i", encrypted, "-o", missing] },
+    { name: "cli-output-is-directory", about: "the output is a directory", args: ["decrypt", "--password-file", passwordFile, "-i", encrypted, "-o", vectorDir] },
+  ];
+  for (const p of all) {
+    const raw = p.raw?.bind(p);
+    if (!raw) continue;
+    for (const t of cli) {
+      checks.push({
+        id: "negative." + p.id + "." + t.name, suite: "negative", title: p.id + ": " + t.about + " → USAGE",
+        consumer: p.id, case: t.name, mode: "USAGE", key: t.about,
+        run: async () => {
+          const r = await raw(t.args);
+          const outcome = expectKind(r, "USAGE");
+          if (outcome.status !== "pass") return outcome;
+          if (r.output.length) return { status: "fail", expected: "nothing on standard output", actual: r.output.length + " bytes", detail: "wrote to standard output although it failed" };
+          if (!/^ssenc: USAGE: /.test(r.stderr)) return { status: "fail", expected: "ssenc: USAGE: <message>", actual: tail(r.stderr, 200), detail: "standard error does not start with the error kind" };
+          return outcome;
+        },
       });
     }
   }

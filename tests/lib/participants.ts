@@ -51,6 +51,18 @@ class CliParticipant implements Participant {
     return r.code === 0 ? r.stdout.toString().trim() : "BROKEN: " + r.stderr.trim();
   }
 
+  raw(args: string[]): Promise<OpResult> {
+    return serverLimit(async () => {
+      const env: NodeJS.ProcessEnv = { ...process.env, ...this.env };
+      delete env.SSENC_PASSWORD;
+      delete env.SSENC_NEW_PASSWORD;
+      delete env.NODE_OPTIONS;
+      const r = await exec(this.bin, args, env);
+      const kind: ResultKind = r.code === 0 ? "OK" : EXIT_KIND[r.code] ?? "CRASH";
+      return { kind, output: r.stdout, stderr: r.stderr, ms: r.ms };
+    });
+  }
+
   run(op: Op): Promise<OpResult> {
     return serverLimit(async () => {
       const dir = mkdtempSync(join(tmpdir(), "ssenc-op-"));

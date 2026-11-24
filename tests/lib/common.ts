@@ -40,6 +40,8 @@ export interface Participant {
   where: "server" | "browser";
   how: string;
   run(op: Op): Promise<OpResult>;
+  /** Command-line participants only: run the command with exactly these arguments (no password in the environment). */
+  raw?(args: string[]): Promise<OpResult>;
   close(): Promise<void>;
 }
 

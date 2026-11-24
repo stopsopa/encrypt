@@ -80,7 +80,8 @@ async function main(argv: string[]): Promise<void> {
     process.stdout.write("ssenc " + IMPL + " " + VERSION + "\n");
     return;
   }
-  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+  if (argv.length === 0) usage("no command given");
+  if (argv[0] === "--help" || argv[0] === "-h") {
     process.stdout.write(USAGE + "\n");
     return;
   }
@@ -138,13 +139,25 @@ async function main(argv: string[]): Promise<void> {
       throw new SsencError("USAGE", "cannot read input: " + (e as Error).message);
     }
   };
-  const writeOutput = (data: Uint8Array | string): void => {
-    if (outPath === undefined) process.stdout.write(data);
-    else writeFileSync(outPath, data);
+  // Resolves when the data is written; a failed write (no permission, disk full, closed
+  // pipe) is an error with an exit code, not an unhandled exception.
+  const writeOutput = async (data: Uint8Array | string): Promise<void> => {
+    try {
+      if (outPath !== undefined) writeFileSync(outPath, data);
+      else {
+        await new Promise<void>((resolve, reject) => {
+          process.stdout.once("error", reject);
+          process.stdout.write(data, (e) => (e ? reject(e) : resolve()));
+        });
+      }
+    } catch (e) {
+      throw new SsencError("USAGE", "cannot write output: " + (e as Error).message);
+    }
   };
 
   if (cmd === "inspect") {
-    process.stdout.write(JSON.stringify(inspect(readInput())) + "\n");
+    const info = JSON.stringify(inspect(readInput())) + "\n";
+    await writeOutput(info);
     return;
   }
 
@@ -176,7 +189,12 @@ async function main(argv: string[]): Promise<void> {
         throw new SsencError("USAGE", "cannot read --previous file: " + (e as Error).message);
       }
     } else if (!fresh && outPath !== undefined && existsSync(outPath)) {
-      const existing = readFileSync(outPath);
+      let existing: Buffer;
+      try {
+        existing = readFileSync(outPath);
+      } catch (e) {
+        throw new SsencError("USAGE", "cannot read existing output file " + outPath + ": " + (e as Error).message);
+      }
       if (existing.subarray(0, 8).toString("latin1") === "#ssenc1 ") opts.previous = existing;
     }
     const input = readInput();
@@ -189,9 +207,9 @@ async function main(argv: string[]): Promise<void> {
       }
       throw e;
     }
-    writeOutput(out);
+    await writeOutput(out);
   } else if (cmd === "decrypt") {
-    writeOutput(await decrypt(readInput(), keys[0]));
+    await writeOutput(await decrypt(readInput(), keys[0]));
   } else {
     const newKeys: Key[] = [];
     let newPassword: Uint8Array | undefined;
@@ -203,7 +221,7 @@ async function main(argv: string[]): Promise<void> {
     }
     for (const k of newSshKeys) newKeys.push(sshKeyArg(k));
     if (newKeys.length === 0) usage("no new key given: use --new-password-file, SSENC_NEW_PASSWORD or --new-ssh-key");
-    writeOutput(await rekey(readInput(), keys[0], newKeys, { rotateDataKey: !rewrapOnly, kdf }));
+    await writeOutput(await rekey(readInput(), keys[0], newKeys, { rotateDataKey: !rewrapOnly, kdf }));
   }
 }
 

@@ -205,13 +205,15 @@ be shorter), decrypt each with its index and `final` set only for the last recor
 
 | Kind | CLI exit code | When |
 |---|---|---|
-| USAGE | 1 | bad arguments, empty password, no key given |
+| USAGE | 1 | bad arguments, no command, empty password, no key given; a file that cannot be read or written |
 | AUTH | 2 | no slot opens with the key; a tag or the seal does not verify |
 | MALFORMED | 3 | not an ssenc1 file, bad header, bad base64, bad padding, out-of-range parameter |
 | ENV | 4 | ssh-agent unreachable, key not in agent, unsupported key type, missing tool |
 
 CLI errors are written to stderr as `ssenc: <KIND>: <message>`; nothing is written to the
-output on error.
+output on error. Every failure of the CLI has one of these four exit codes; 0 means that
+the operation succeeded and its whole output was written. Only `--help` and `--version`
+succeed without doing an operation; the CLI without any argument is a USAGE error.
 
 ## 7. CLI
 

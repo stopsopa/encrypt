@@ -163,12 +163,26 @@ ssenc decrypt --ssh-key ~/.ssh/id_ed25519.pub -i secrets.env.enc
 | Code | Name | Meaning |
 |---|---|---|
 | 0 | | success |
-| 1 | USAGE | bad arguments, empty password, no key given |
+| 1 | USAGE | bad arguments, no command, empty password, no key given, a file that cannot be read or written |
 | 2 | AUTH | wrong key, or the file was modified |
 | 3 | MALFORMED | the input is not a valid ssenc1 file |
 | 4 | ENV | ssh-agent not reachable, key not loaded in the agent, unsupported key type |
 
-Errors go to standard error as `ssenc: <NAME>: <message>`.
+Errors go to standard error as `ssenc: <NAME>: <message>`, and nothing is written to the
+output. Exit code 0 always means that the operation succeeded and the whole output was
+written.
+
+In a pipeline the shell reports the exit code of the **last** command, not of `ssenc`:
+
+```sh
+ssenc inspect -i missing.enc | jq; echo $?      # 0: that is jq's exit code, ssenc exited with 1
+
+set -o pipefail                                 # bash and zsh: a pipeline fails when any part fails
+ssenc inspect -i missing.enc | jq; echo $?      # 1
+```
+
+Without `pipefail`, bash has `${PIPESTATUS[0]}` and zsh has `$pipestatus[1]` for the exit
+code of the first command of the last pipeline.
 
 ## Differences between the three commands
 

@@ -129,7 +129,29 @@ cp s/config.yml.enc s/config.v1.enc
 printf "host: db.internal\nport: 6543\nuser: admin\n" > s/config.yml                    # edit one line
 $S encrypt --password-file s/password.txt -i s/config.yml -o s/config.yml.enc           # existing output is reused
 diff s/config.v1.enc s/config.yml.enc                                                   # one line differs
+```
 
+What `--previous FILE` does: every encrypted file has its own random **data key**, the key
+that really locks the lines. It is stored in the `#slot` line at the top, itself locked with
+your password. The same line locked with the same data key always gives the same encrypted
+text. Normally `encrypt` makes a new data key every time, so every line comes out different
+even when nothing was edited. `--previous FILE` means: open FILE with my key, take its data
+key and use it again.
+
+- **Result:** lines that were not edited come out exactly as they are in FILE; only edited
+  lines differ. Nothing is compared: it follows from using the same data key.
+- **FILE is only read.** The result goes to `-o` (or standard output).
+- **The top of the file is copied:** the `#slot` lines are taken from FILE as they are, and
+  the settings of the first line (mode, `ws`, `pad`) too, unless given on the command line.
+  `--kdf` has no effect, because no new `#slot` line is made.
+- **Your key must open FILE.** If it does not: exit code 2, nothing is written.
+- **Writing to an existing output file is the same thing:** the command above used
+  `s/config.yml.enc` itself as FILE, without being asked. `--fresh` switches that off.
+- **When to give it yourself:** when the earlier version is somewhere else than the output:
+  the output goes to standard output or to a new name, or the earlier version comes from git
+  (`git show HEAD:config.yml.enc > s/old.enc`).
+
+```sh
 # reuse another file than the output
 $S encrypt --password-file s/password.txt --previous s/config.v1.enc -i s/config.yml -o s/config.other.enc
 diff s/config.v1.enc s/config.other.enc                                                 # the same one line
