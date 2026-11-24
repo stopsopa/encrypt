@@ -1,5 +1,8 @@
 # ssenc
 
+**Start here: [examples/SUMMARY.md](examples/SUMMARY.md)** — all arguments in one table, then
+every use case as a few commands to copy and run.
+
 ## Live pages
 
 - [Encryptor](https://stopsopa.github.io/encrypt/encryptor/) — type a message and a key in the browser, get a shareable link that holds only the encrypted text

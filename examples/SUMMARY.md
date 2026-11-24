@@ -14,6 +14,106 @@ export S="bash/bin/ssenc"
 
 ```
 
+## Synopsis: all arguments
+
+```
+$S encrypt KEYS    [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
+                   [--seal] [--previous FILE | --fresh] [-i IN] [-o OUT]
+$S decrypt KEY     [-i IN] [-o OUT]
+$S rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
+$S inspect [-i IN]
+$S --version
+$S --help
+```
+
+The command (`encrypt`, `decrypt`, `rekey`, `inspect`) is always the first argument; the
+order of the other arguments does not matter.
+
+| Argument | Used with | Required | Default |
+|---|---|---|---|
+| `encrypt` \| `decrypt` \| `rekey` \| `inspect` | | yes, exactly one | — |
+| `-i FILE` | all four | no | standard input |
+| `-o FILE` | `encrypt`, `decrypt`, `rekey` | no | standard output |
+| `--password-file FILE` | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — |
+| `SSENC_PASSWORD` (environment variable) | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — |
+| `--ssh-key FILE.pub` \| `--ssh-key SHA256:…` | `encrypt` (any number), `decrypt` and `rekey` (one) | a key is required, see KEY below | — |
+| `--new-password-file FILE` | `rekey` | a new key is required, see NEWKEYS below | — |
+| `SSENC_NEW_PASSWORD` (environment variable) | `rekey` | a new key is required, see NEWKEYS below | — |
+| `--new-ssh-key FILE.pub` \| `--new-ssh-key SHA256:…` | `rekey` (any number) | a new key is required, see NEWKEYS below | — |
+| `--mode lines\|blob\|auto` | `encrypt` | no | `lines` |
+| `--no-preserve-ws` | `encrypt` | no | off: indentation stays readable |
+| `--pad N` | `encrypt` | no | `16` |
+| `--chunk N` | `encrypt` | no | `65536` |
+| `--kdf PROFILE` | `encrypt`, `rekey` | no | `default` (= `m=65536,t=3,p=4`) |
+| `--seal` | `encrypt` | no | off |
+| `--previous FILE` | `encrypt` | no | the `-o` file, when it exists and is an encrypted file |
+| `--fresh` | `encrypt` | no | off |
+| `--rewrap-only` | `rekey` | no | off: everything is encrypted again |
+| `--version` | alone | no | — |
+| `--help`, `-h` | alone | no | — |
+
+The defaults of `--mode`, `--no-preserve-ws`, `--pad`, `--chunk` and `--seal` are for a new
+file. When the `-o` file already exists and is an encrypted file (or `--previous` is given),
+what is not given on the command line is taken from that file. `--fresh` brings the defaults
+back.
+
+What each one does:
+
+- **`encrypt`**: plain input to encrypted ASCII text.
+- **`decrypt`**: encrypted text back to the original bytes. Takes no options about the
+  format: everything needed is written in the file.
+- **`rekey`**: replaces the keys of an encrypted file. All old keys stop working.
+- **`inspect`**: prints one line of JSON saying how a file was encrypted (mode, settings,
+  key slots). Needs no key.
+- **`-i FILE`**: where the input is read from. The whole input is read before anything is
+  written, so `-i` and `-o` may name the same file.
+- **`-o FILE`**: where the result is written. Nothing is written when there is an error.
+  `inspect` always prints to standard output.
+- **KEY** (required for `encrypt`, `decrypt`, `rekey`): the first one found of
+  `--password-file`, then `SSENC_PASSWORD`. When neither is given and there is no
+  `--ssh-key`, the password is asked for on the terminal, but only when `-i` names a file
+  and the terminal is interactive; otherwise it is an error (exit code 1).
+  - **`--password-file FILE`**: the password is the content of FILE, without one newline at
+    its end. A password is never taken as an argument, because other processes can see
+    arguments.
+  - **`SSENC_PASSWORD`**: the password itself.
+  - **`--ssh-key`**: an ssh key instead of (or, for `encrypt`, in addition to) a password,
+    named by its public key file or by its fingerprint. Its private key has to be loaded in
+    `ssh-agent`. `encrypt` takes a password and any number of `--ssh-key` at once, and each
+    of them alone opens the file later. `decrypt` and `rekey` use one key: `--ssh-key` when
+    given, otherwise the password.
+- **NEWKEYS** (required for `rekey`, at least one): the keys the file has afterwards.
+  `--new-password-file` (or else `SSENC_NEW_PASSWORD`) and any number of `--new-ssh-key`,
+  written like the ones above. There is no prompt for a new password.
+- **`--mode`**: `lines`: every line of the input becomes one encrypted line, so an edit of
+  one line changes one line. `blob`: the input is encrypted as a whole, for binary files or
+  when the line structure must not show. `auto`: `lines` when the input is text (no NUL
+  byte, valid UTF-8), otherwise `blob`.
+- **`--no-preserve-ws`**: lines mode only. Normally the spaces and tabs at the beginning
+  and the end of each line stay as they are, so indentation is readable in the encrypted
+  file. With this option they are encrypted too. Ignored in blob mode.
+- **`--pad N`**: lines mode only. Each line is filled up to a multiple of N bytes before it
+  is encrypted, so the exact length of a line does not show. `0` switches it off; the
+  highest value is 4096. Ignored in blob mode.
+- **`--chunk N`**: blob mode only. The size in bytes of the pieces the input is cut into,
+  from 1 to 1048576 (explained in case 003). Ignored in lines mode.
+- **`--kdf PROFILE`**: how much work it takes to turn the password into a key, which is
+  what slows down someone guessing passwords. `default`: 64 MiB of memory, 3 passes.
+  `strong`: 1 GiB, 4 passes. Or exact values: `m=<KiB>,t=<passes>,p=<lanes>`. Has no effect
+  on ssh keys, and none when the key lines are copied from an existing file.
+- **`--seal`**: lines mode only. Adds a `#seal` line with a checksum over the whole file at its top,
+  so that removed, added or moved lines are detected (a changed line is always detected). In
+  blob mode it is an error (exit code 1): a blob is protected like that already.
+- **`--previous FILE`**: use the data key of an earlier encrypted version, so lines that
+  were not edited stay identical (explained in case 005).
+- **`--fresh`**: do not use the existing `-o` file as `--previous` (explained in case 005).
+  Cannot be combined with `--previous`.
+- **`--rewrap-only`**: `rekey` replaces only the key lines at the top and leaves the rest
+  of the file byte for byte as it was. Faster and with a small diff, but someone who has an
+  old key and an old copy of the file can still read later versions.
+- **`--version`**: prints the implementation and the version, e.g. `ssenc rust 0.1.0`.
+- **`--help`**, **`-h`**: prints the usage.
+
 ## case-001-cli_text_with_password
 
 Encrypt a text from standard input with a password and decrypt it.
