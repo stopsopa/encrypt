@@ -29,28 +29,28 @@ $S --help
 The command (`encrypt`, `decrypt`, `rekey`, `inspect`) is always the first argument; the
 order of the other arguments does not matter.
 
-| Argument | Used with | Required | Default |
-|---|---|---|---|
-| `encrypt` \| `decrypt` \| `rekey` \| `inspect` | | yes, exactly one | — |
-| `-i FILE` | all four | no | standard input |
-| `-o FILE` | `encrypt`, `decrypt`, `rekey` | no | standard output |
-| `--password-file FILE` | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — |
-| `SSENC_PASSWORD` (environment variable) | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — |
-| `--ssh-key FILE.pub` \| `--ssh-key SHA256:…` | `encrypt` (any number), `decrypt` and `rekey` (one) | a key is required, see KEY below | — |
-| `--new-password-file FILE` | `rekey` | a new key is required, see NEWKEYS below | — |
-| `SSENC_NEW_PASSWORD` (environment variable) | `rekey` | a new key is required, see NEWKEYS below | — |
-| `--new-ssh-key FILE.pub` \| `--new-ssh-key SHA256:…` | `rekey` (any number) | a new key is required, see NEWKEYS below | — |
-| `--mode lines\|blob\|auto` | `encrypt` | no | `lines` |
-| `--no-preserve-ws` | `encrypt` | no | off: indentation stays readable |
-| `--pad N` | `encrypt` | no | `16` |
-| `--chunk N` | `encrypt` | no | `65536` |
-| `--kdf PROFILE` | `encrypt`, `rekey` | no | `default` (= `m=65536,t=3,p=4`) |
-| `--seal` | `encrypt` | no | off |
-| `--previous FILE` | `encrypt` | no | the `-o` file, when it exists and is an encrypted file |
-| `--fresh` | `encrypt` | no | off |
-| `--rewrap-only` | `rekey` | no | off: everything is encrypted again |
-| `--version` | alone | no | — |
-| `--help`, `-h` | alone | no | — |
+| Argument | Used with | Required | Default | Example |
+|---|---|---|---|---|
+| `encrypt` \| `decrypt` \| `rekey` \| `inspect` | | yes, exactly one | — | [case 001](#case-001-cli_text_with_password) (`encrypt`, `decrypt`), [case 010](#case-010-cli_rekey_change_password) (`rekey`), [case 004](#case-004-cli_inspect_without_key) (`inspect`) |
+| `-i FILE` | all four | no | standard input | [case 002](#case-002-cli_file_with_password) |
+| `-o FILE` | `encrypt`, `decrypt`, `rekey` | no | standard output | [case 002](#case-002-cli_file_with_password) |
+| `--password-file FILE` | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — | [case 002](#case-002-cli_file_with_password) |
+| `SSENC_PASSWORD` (environment variable) | `encrypt`, `decrypt`, `rekey` | a key is required, see KEY below | — | [case 001](#case-001-cli_text_with_password) |
+| `--ssh-key FILE.pub` \| `--ssh-key SHA256:…` | `encrypt` (any number), `decrypt` and `rekey` (one) | a key is required, see KEY below | — | [case 011](#case-011-cli_ssh_key_from_ssh_agent), [case 012](#case-012-cli_several_keys_ssh_and_backup_password) (several keys) |
+| `--new-password-file FILE` | `rekey` | a new key is required, see NEWKEYS below | — | [case 010](#case-010-cli_rekey_change_password) |
+| `SSENC_NEW_PASSWORD` (environment variable) | `rekey` | a new key is required, see NEWKEYS below | — | [case 010](#case-010-cli_rekey_change_password) |
+| `--new-ssh-key FILE.pub` \| `--new-ssh-key SHA256:…` | `rekey` (any number) | a new key is required, see NEWKEYS below | — | [case 013](#case-013-cli_rekey_between_password_and_ssh_key) |
+| `--mode lines\|blob\|auto` | `encrypt` | no | `lines` | [case 003](#case-003-cli_binary_file_blob_mode) |
+| `--no-preserve-ws` | `encrypt` | no | off: indentation stays readable | [case 006](#case-006-cli_whitespace_and_padding) |
+| `--pad N` | `encrypt` | no | `16` | [case 006](#case-006-cli_whitespace_and_padding) |
+| `--chunk N` | `encrypt` | no | `65536` | [case 003](#case-003-cli_binary_file_blob_mode) |
+| `--kdf PROFILE` | `encrypt`, `rekey` | no | `default` (= `m=65536,t=3,p=4`) | [case 008](#case-008-cli_password_cost_kdf) |
+| `--seal` | `encrypt` | no | off | [case 007](#case-007-cli_seal_detects_removed_lines) |
+| `--previous FILE` | `encrypt` | no | the `-o` file, when it exists and is an encrypted file | [case 005](#case-005-cli_update_changes_only_edited_lines) |
+| `--fresh` | `encrypt` | no | off | [case 005](#case-005-cli_update_changes_only_edited_lines) |
+| `--rewrap-only` | `rekey` | no | off: everything is encrypted again | [case 010](#case-010-cli_rekey_change_password) |
+| `--version` | alone | no | — | — |
+| `--help`, `-h` | alone | no | — | — |
 
 The defaults of `--mode`, `--no-preserve-ws`, `--pad`, `--chunk` and `--seal` are for a new
 file. When the `-o` file already exists and is an encrypted file (or `--previous` is given),
