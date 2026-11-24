@@ -1214,7 +1214,38 @@ node examples/socket/server.ts --ssh-key $T/key.pub --seal > $T/server.log 2>&1 
 SERVER=$!
 ```
 
-One request: command, input file, output file.
+The socket takes plain text, so no client program is needed: write a request line to the
+socket, read the reply line. With `nc` (a few milliseconds, nothing of Node is started):
+
+```sh
+echo "encode \"$T/plain/01.yml\" \"$T/encrypted/01.yml.enc\"" | nc -U $T/ssenc.sock
+echo "decode \"$T/encrypted/01.yml.enc\" \"$T/decoded/01.yml\"" | nc -U $T/ssenc.sock
+diff $T/plain/01.yml $T/decoded/01.yml && echo identical
+```
+
+Without starting any process at all: zsh can open the socket itself and keep the connection
+for as many requests as you like (zsh only; bash has nothing built in for unix sockets).
+
+```sh
+zmodload zsh/net/socket
+zsocket $T/ssenc.sock                 # connect; the number of the connection is in $REPLY
+FD=$REPLY
+
+print -r -u $FD -- "encode \"$T/plain/02.yml\" \"$T/encrypted/02.yml.enc\""    # send one request ...
+read -r -u $FD ANSWER; echo $ANSWER                                           # ... read its reply
+
+time (for f in $T/plain/[0-9]*.yml; do
+  print -r -u $FD -- "encode \"$f\" \"$T/encrypted/${f:t}.enc\""                # ${f:t} is the file name without the directory
+  read -r -u $FD ANSWER; echo $ANSWER
+done)
+
+exec {FD}>&-                          # close the connection
+```
+
+A program does the same: connect once, write lines, read lines. `client.ts` is such a
+program, for convenience: it builds the request line from its arguments (also for file
+names with quotes) and turns an error reply into exit code 1. One request: command, input
+file, output file.
 
 ```sh
 node examples/socket/client.ts encode $T/plain/01.yml $T/encrypted/01.yml.enc
@@ -1225,7 +1256,7 @@ diff $T/plain/01.yml $T/decoded/01.yml && echo identical
 Many requests over one connection, one per line on standard input:
 
 ```sh
-time (for f in $T/plain/*.yml; do echo "encode \"$f\" \"$T/encrypted/$(basename $f).enc\""; done | node examples/socket/client.ts)
+time (for f in $T/plain/[0-9]*.yml; do echo "encode \"$f\" \"$T/encrypted/$(basename $f).enc\""; done | node examples/socket/client.ts)
 
 # requests written by hand; any file name works
 cp $T/plain/02.yml "$T/plain/my \"quoted\" name.yml"
@@ -1274,17 +1305,19 @@ How fast it is (same laptop, same ssh key, with `--seal`):
 
 | One file | Time |
 |---|---|
-| a request to the running process | 2 to 3 ms |
+| a request on an open connection (zsh `zsocket`, or a program) | 2 to 3 ms |
+| a request sent with `nc` | about 10 ms |
+| a request sent with `node examples/socket/client.ts` | about 100 ms (the start of Node) |
 | `rust/target/release/ssenc` | about 7 ms |
 | `typescript/bin/ssenc` | about 150 ms |
 
 - **Why it is fast:** the program is already running. Nothing is cached and nothing about
   the encryption is different: every file still gets its own data key and its own signature
   from the agent.
-- **When it pays off:** when requests come from a program that keeps a connection open, or
-  when only Node.js is available. 200 requests over one connection took 0.45 s. From a shell,
-  one call of `client.ts` costs the start of Node (about 0.1 s), so there the Rust command is
-  the faster one.
+- **When it pays off:** when requests go over a connection that stays open, from zsh or from
+  a program: ten files took 0.07 s that way, 200 requests through one call of `client.ts`
+  0.45 s. A new `nc` for every request is about as fast as the Rust command; a new
+  `client.ts` for every request is slower than both.
 - **Who can use it:** the socket file is readable and writable only by you. Everyone who can
   connect can decrypt every file the key opens, exactly like everyone who can reach your
   `ssh-agent`.
