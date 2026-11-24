@@ -1,5 +1,6 @@
 # everything an example generates: demo passwords, demo ssh keys, input and output files
 /case-*/tmp/
+/socket/tmp/
 
 # the small Rust programs of the library examples: shared build directory and lock files
 # (install.sh starts each lock file from rust/Cargo.lock)

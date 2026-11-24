@@ -81,6 +81,15 @@ Case 023 differs between variants: the TypeScript and Rust libraries accept a si
 function, the Bash library does not, so `bash.sh` shows what Bash can choose instead (which
 agent is asked).
 
+## Encoder process on a socket
+
+[`socket/`](socket) is not a case with three variants but one small program: a process that
+stays running, listens on a unix socket and encrypts or decrypts the files named in the
+requests it receives, with an ssh key (`server.ts`, `client.ts`, `protocol.ts`; each file
+starts with a description). How to try it, step by step, and how fast it is: the two
+`socket-…` sections at the end of [SUMMARY.md](SUMMARY.md). What it generates goes to
+`socket/tmp/`, ignored by git. `examples.sh` does not run it.
+
 ## Shared files
 
 - `examples.sh` — runs the cases and prints a summary; exit code 1 when any example failed.

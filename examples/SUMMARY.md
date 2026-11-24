@@ -1105,6 +1105,192 @@ EOF
 time bash s/demo.sh
 ```
 
+## socket-001-many_files_fast_with_ssh_key_and_seal
+
+Many files one after another: what makes it slow, and how to avoid that without weakening
+anything. Everything of this section and the next one is in `examples/socket/tmp/` (ignored
+by git), not in `s/`.
+
+What is slow is the step that turns a **password** into a key (Argon2id). It is slow on
+purpose and uses 64 MiB of memory, so that someone who has the encrypted file can try only a
+few passwords per second. It runs once for every file, because every file has its own
+random salt. Ways around it that keep the security:
+
+| Way | Why nothing is weakened | Shown in |
+|---|---|---|
+| An ssh key instead of a password | The key comes from a signature made by `ssh-agent`. A signature cannot be guessed the way a password can, so there is nothing to slow down: no Argon2id at all. | here |
+| A random key file with `--kdf m=8,t=1,p=1` | 256 random bits cannot be guessed either. | [case 014](#case-014-cli_many_files_fast_with_random_key) |
+| Several files at a time (`xargs -P`) | The same work on more cores. | [case 014](#case-014-cli_many_files_fast_with_random_key) |
+| One process for all files | No start of a program for every file. | [case 024](#case-024-lib_many_encryptions_fast), [next section](#socket-002-encoder_process_on_a_socket) |
+
+What does weaken it: a lower `--kdf` with a password that a person chose.
+
+Once per terminal: ten files, a demo ssh key and a private agent that holds it. Your own
+agent and keys are not touched; `SSH_AUTH_SOCK` of this terminal points to the private agent
+until the last block of the next section puts it back.
+
+```sh
+export T=examples/socket/tmp
+mkdir -p $T/plain $T/encrypted $T/decoded
+for i in 01 02 03 04 05 06 07 08 09 10; do printf "name: file $i\nuser: admin\nport: 5432\n" > $T/plain/$i.yml; done
+
+# a demo key pair without a passphrase, made only when it is not there yet:
+# $T/key (private) and $T/key.pub (public)
+[ -f $T/key ] || ssh-keygen -q -t ed25519 -N "" -C socket-demo -f $T/key
+
+# Make sure the private ssh-agent of this example runs: a second agent, separate from yours.
+# The first call starts it in the background; every later call sees that it runs and starts
+# nothing. It listens on the socket file $T/agent.sock (programs talk to an agent through
+# such a file) and its pid is kept in $T/agent.env for stopping it.
+/bin/bash examples/socket/ssh-agent-start.sh
+
+# From now on ssh-add and ssenc in this terminal talk to the private agent instead of yours.
+# The previous value is kept to put it back at the end (kept only once, so this block can be run again).
+SOCK_BEFORE="${SOCK_BEFORE:-$SSH_AUTH_SOCK}"
+export SSH_AUTH_SOCK="$PWD/$T/agent.sock"
+
+ssh-add $T/key          # load the demo private key into the private agent
+ssh-add -l              # list what the agent holds: only the demo key
+```
+
+Ten files with a password, then the same ten with the ssh key and `--seal`:
+
+```sh
+openssl rand -base64 24 > $T/password.txt
+
+time (for f in $T/plain/*.yml; do $S encrypt --fresh --password-file $T/password.txt -i $f -o $T/encrypted/$(basename $f).pw.enc; done)
+
+time (for f in $T/plain/*.yml; do $S encrypt --fresh --seal --ssh-key $T/key.pub -i $f -o $T/encrypted/$(basename $f).enc; done)
+
+head -n 3 $T/encrypted/01.yml.enc                       # header, key line of the ssh key, seal
+$S inspect -i $T/encrypted/01.yml.enc | jq
+$S decrypt --ssh-key $T/key.pub -i $T/encrypted/01.yml.enc
+```
+
+Measured on an Apple M-series laptop, ten files:
+
+| `$S` | password, default cost | ssh key and `--seal` |
+|---|---|---|
+| `rust/target/release/ssenc` | 1.4 s | 0.09 s |
+| `typescript/bin/ssenc` | 16 s | 1.5 s |
+| `bash/bin/ssenc` | 3.3 s | 2.5 s |
+
+- **What is left with the ssh key** is the start of the program for every file: about 7 ms
+  for Rust, about 150 ms for Node. Bash is slow in the encryption itself. The next section
+  removes the start of the program.
+- **A backup password next to the ssh key** ([case 012](#case-012-cli_several_keys_ssh_and_backup_password))
+  brings Argon2id back, but only when a file is encrypted for the first time. An update opens
+  the existing file with the ssh key and copies the key lines, so it is as fast as without
+  the password.
+- **`--seal` costs nothing you can measure.** Keep in mind that a sealed file conflicts on
+  every concurrent git merge.
+
+## socket-002-encoder_process_on_a_socket
+
+One process that is started once, listens on a unix socket and encrypts or decrypts the
+files named in the requests it receives, with the ssh key and `--seal` of the section above
+(do its first block before this one). The code is in `examples/socket/`:
+
+| File | What it is |
+|---|---|
+| `server.ts` | the process: `encode` works like `$S encrypt -i IN -o OUT`, `decode` like `$S decrypt -i IN -o OUT` |
+| `client.ts` | sends requests and prints the replies; exit code 1 when a reply is an error |
+| `protocol.ts` | the text format of requests and replies |
+
+A request is one line, a reply is one line. The first path is the input, the second the
+output; a path is in double quotes, with `\"` for a double quote inside it. A relative path
+is relative to the directory the server was started in.
+
+```
+encode "source/raw_file.txt" "target/raw_file.txt.encoded"       ->  ok encode "target/raw_file.txt.encoded" 3ms
+decode "target/file.txt.encoded" "source/\"file.txt"             ->  ok decode "source/\"file.txt" 2ms
+decode "source/raw_file.txt" "x"                                 ->  error MALFORMED not an ssenc1 file (missing '#ssenc1' header)
+```
+
+Start it in the background:
+
+```sh
+node examples/socket/server.ts --ssh-key $T/key.pub --seal > $T/server.log 2>&1 &
+SERVER=$!
+```
+
+One request: command, input file, output file.
+
+```sh
+node examples/socket/client.ts encode $T/plain/01.yml $T/encrypted/01.yml.enc
+node examples/socket/client.ts decode $T/encrypted/01.yml.enc $T/decoded/01.yml
+diff $T/plain/01.yml $T/decoded/01.yml && echo identical
+```
+
+Many requests over one connection, one per line on standard input:
+
+```sh
+time (for f in $T/plain/*.yml; do echo "encode \"$f\" \"$T/encrypted/$(basename $f).enc\""; done | node examples/socket/client.ts)
+
+# requests written by hand; any file name works
+cp $T/plain/02.yml "$T/plain/my \"quoted\" name.yml"
+cat > $T/requests.txt <<EOF
+encode "$T/plain/my \"quoted\" name.yml" "$T/encrypted/quoted.enc"
+decode "$T/encrypted/quoted.enc" "$T/decoded/quoted.yml"
+EOF
+cat $T/requests.txt
+node examples/socket/client.ts < $T/requests.txt
+diff $T/plain/02.yml $T/decoded/quoted.yml && echo identical
+```
+
+The files are ordinary encrypted files, and an update changes only the edited line:
+
+```sh
+$S inspect -i $T/encrypted/quoted.enc | jq
+$S decrypt --ssh-key $T/key.pub -i $T/encrypted/quoted.enc
+
+cp $T/encrypted/03.yml.enc $T/03.v1.enc
+printf "name: file 03\nuser: root\nport: 5432\n" > $T/plain/03.yml               # edit one line
+node examples/socket/client.ts encode $T/plain/03.yml $T/encrypted/03.yml.enc
+diff $T/03.v1.enc $T/encrypted/03.yml.enc                                        # the edited line and the #seal line
+```
+
+Errors come back as a reply, and the client exits with 1:
+
+```sh
+node examples/socket/client.ts decode $T/plain/01.yml $T/decoded/x.yml; echo "exit code $?"        # error MALFORMED: not an encrypted file
+
+sed '$d' $T/encrypted/04.yml.enc > $T/encrypted/04.cut.enc                                         # remove the last line
+node examples/socket/client.ts decode $T/encrypted/04.cut.enc $T/decoded/04.yml; echo "exit code $?"   # error AUTH: the seal does not match
+ls $T/decoded                                                                                      # no x.yml, no 04.yml
+```
+
+Stop everything and put the terminal back:
+
+```sh
+cat $T/server.log                                # one line per request
+kill $SERVER                                     # the server removes its socket file
+/bin/bash examples/socket/ssh-agent-stop.sh    # the private agent; fine to call when it does not run
+export SSH_AUTH_SOCK="$SOCK_BEFORE"
+rm -rf $T
+```
+
+How fast it is (same laptop, same ssh key, with `--seal`):
+
+| One file | Time |
+|---|---|
+| a request to the running process | 2 to 3 ms |
+| `rust/target/release/ssenc` | about 7 ms |
+| `typescript/bin/ssenc` | about 150 ms |
+
+- **Why it is fast:** the program is already running. Nothing is cached and nothing about
+  the encryption is different: every file still gets its own data key and its own signature
+  from the agent.
+- **When it pays off:** when requests come from a program that keeps a connection open, or
+  when only Node.js is available. 200 requests over one connection took 0.45 s. From a shell,
+  one call of `client.ts` costs the start of Node (about 0.1 s), so there the Rust command is
+  the faster one.
+- **Who can use it:** the socket file is readable and writable only by you. Everyone who can
+  connect can decrypt every file the key opens, exactly like everyone who can reach your
+  `ssh-agent`.
+- **Options:** `--ssh-key` (required), `--seal`, `--mode lines|blob|auto`, `--socket PATH`;
+  `node examples/socket/server.ts --help`. Only an ssh key is supported, no password.
+
 ## Clean up
 
 Stop the private agent of case-011 and bring `s/` back to what is in git.
