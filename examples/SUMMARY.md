@@ -155,7 +155,30 @@ key and use it again.
 # reuse another file than the output
 $S encrypt --password-file s/password.txt --previous s/config.v1.enc -i s/config.yml -o s/config.other.enc
 diff s/config.v1.enc s/config.other.enc                                                 # the same one line
+```
 
+**TLDR: `--fresh` makes a difference only when the `-o` file already exists and is an
+encrypted file.** In every other case (no such file yet, a file that is not an encrypted
+one, output to standard output) the result is the same with and without it.
+
+What `--fresh` does: it tells `encrypt` to ignore the file that already exists at `-o` and
+to overwrite it as if it was not there.
+
+| When `-o` is an existing encrypted file | without `--fresh` | with `--fresh` |
+|---|---|---|
+| Data key | taken from the existing file | new, random |
+| Lines that were not edited | stay identical | change, like every other line |
+| `#slot` lines | copied | made again |
+| Settings (mode, `pad`, …) | as in the existing file, unless given | from the command line, else the defaults |
+| `--kdf` | no effect | used |
+| `--mode auto` | the mode of the existing file | detected again |
+| Key that does not open the existing file | exit code 2, nothing written | fine: the file is replaced |
+
+Use it to start over with another password or other settings, or to hide which lines were
+edited. This document also uses it wherever a block has to work when it is run again after
+`s/password.txt` was generated again. `--fresh` and `--previous` cannot be given together.
+
+```sh
 # start over: every line changes
 $S encrypt --fresh --password-file s/password.txt -i s/config.yml -o s/config.yml.enc
 diff s/config.v1.enc s/config.yml.enc
