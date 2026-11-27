@@ -111,7 +111,11 @@ What each one does:
 - **`--rewrap-only`**: `rekey` replaces only the key lines at the top and leaves the rest
   of the file byte for byte as it was. Faster and with a small diff, but someone who has an
   old key and an old copy of the file can still read later versions.
-- **`--version`**: prints the implementation and the version, e.g. `ssenc rust 0.1.0`.
+- **`--version`**: prints the implementation and the version, e.g. `ssenc bash 0.1.0`. The Rust
+  binary prints the tag of its release (`ssenc rust v0.1.0`), or `ssenc rust dev` when built locally.
+- **`--update`** (Rust binary from a [release](https://github.com/stopsopa/encrypt/releases) only):
+  `$S --update` replaces the binary with the latest release, `$S --update --check` only compares,
+  `$S --update v0.1.0` installs that release. See [docs/cli.md](../docs/cli.md#updating-rust-binary-only).
 - **`--help`**, **`-h`**: prints the usage.
 
 ## case-001-cli_text_with_password

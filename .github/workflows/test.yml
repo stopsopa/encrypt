@@ -2,6 +2,15 @@
 # including the browser through Playwright, vectors, rekey, diff stability, negative tests)
 # and every usage example on Linux and macOS, and publishes one explorable report to
 # GitHub Pages.
+#
+# The only workflow of this repository, one run per push:
+#
+#   every push, every PR   test -> build-matrix (the Rust ssenc binary for every released platform)
+#                          test -> report
+#   push to main           ... and then: deploy    (GitHub Pages: the report and the encryptor page)
+#   push of a tag          ... and then: release   (GitHub Release, what "ssenc --update" downloads)
+#
+# Nothing is released when tests fail. A tag is created and pushed with tag.sh (xx publish).
 name: test
 
 on:
@@ -12,9 +21,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch cancels the run of the older one.
+# Tags are never cancelled: each one is a release.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   test:
@@ -149,3 +160,127 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # The Rust ssenc binary for every released platform. Built on every push (so a broken build is
+  # seen before a release), published only for a tag (job release).
+  build-matrix:
+    name: build ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        # artifact_name: the same names rust/src/update.rs looks for (fn asset)
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: ssenc-darwin-arm64
+            use_cross: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: ssenc-linux-x64
+            use_cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: ssenc-linux-arm64
+            use_cross: true
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # compiled crates of the previous run: the build is the slow part of this job
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: ${{ matrix.target }}
+
+      # a prebuilt binary: "cargo install cross" compiles it for minutes
+      - name: install cross (if required)
+        if: matrix.use_cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      # The version is embedded only when a tag is built (rust/build.rs reads SSENC_VERSION).
+      # Everything else is "dev", and a "dev" binary refuses to --update.
+      - name: build binary
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            export SSENC_VERSION="${{ github.ref_name }}"
+          fi
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            # SSENC_VERSION reaches the container thanks to rust/Cross.toml
+            cross build --release --locked --target ${{ matrix.target }}
+          else
+            cargo build --release --locked --target ${{ matrix.target }}
+          fi
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/ssenc dist/${{ matrix.artifact_name }}
+
+      # the binary of this runner is started: it has to report the version it was built for
+      - name: check the version of the binary
+        if: "!matrix.use_cross"
+        run: |
+          EXPECTED="ssenc rust dev"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            EXPECTED="ssenc rust ${{ github.ref_name }}"
+          fi
+          GOT="$(dist/${{ matrix.artifact_name }} --version)"
+          echo "${GOT}"
+          if [ "${GOT}" != "${EXPECTED}" ]; then
+            echo "error: expected >${EXPECTED}<, got >${GOT}<"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: rust/dist/${{ matrix.artifact_name }}
+
+  release:
+    name: publish release
+    needs: build-matrix
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # needed for changelog.md and scripts/release_notes.sh
+      - uses: actions/checkout@v4
+
+      # only the binaries (the same run also has the artifacts results-* and report)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ssenc-*
+          path: release-artifacts
+
+      # bare binaries + SHA256SUMS.txt: the shape "ssenc --update" expects from every release
+      - name: prepare release files and checksums
+        run: |
+          mkdir -p release-dist
+          find release-artifacts -type f -exec cp {} release-dist/ \;
+          cd release-dist
+          shasum -a 256 ssenc-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+          /bin/bash scripts/release_notes.sh "${{ github.ref_name }}" "${{ github.repository }}" release-dist > release_notes.md
+          cat release_notes.md
+
+      - name: create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          body_path: release_notes.md
+          files: |
+            release-dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

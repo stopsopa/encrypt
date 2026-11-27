@@ -8,6 +8,87 @@ every use case as a few commands to copy and run.
 - [Encryptor](https://stopsopa.github.io/encrypt/encryptor/) — type a message and a key in the browser, get a shareable link that holds only the encrypted text
 - [Test report](https://stopsopa.github.io/encrypt/) — every implementation decrypting what every other one encrypted, rebuilt on each push
 
+## Install
+
+The Rust `ssenc` command is released as a single binary, nothing else is needed to use it. (The
+TypeScript and Bash implementations are used from a clone of this repository, see
+[Command line](docs/cli.md).)
+
+### Download and verify
+
+Go to [GitHub Releases](https://github.com/stopsopa/encrypt/releases), open the release you want (the
+latest one normally) and run the block of your platform (`ssenc-darwin-arm64`, `ssenc-linux-x64`,
+`ssenc-linux-arm64`). It creates a new temporary directory, `cd`s into it, downloads the binary
+there as `ssenc` and verifies its checksum.
+
+The verification has to end with `ssenc: OK`. Then come back here, **in the same terminal** (you
+are in the directory with the downloaded file).
+
+Or build it instead: `rust/compile.sh` gives `rust/target/release/ssenc` (version `dev`).
+
+### Install
+
+In the directory with the downloaded file:
+
+```sh
+mkdir -p ~/.ssenc
+mv ssenc ~/.ssenc/
+chmod 755 ~/.ssenc/ssenc
+
+# check that it runs
+~/.ssenc/ssenc --version
+```
+
+Add one line to the startup file of your shell. Run **one** of the two blocks, once: the first is
+for zsh (`~/.zshrc`), the second for bash (`~/.bashrc`):
+
+```sh
+cat <<'EEE' >> ~/.zshrc
+
+# ssenc - https://github.com/stopsopa/encrypt
+export PATH="${HOME}/.ssenc:${PATH}"
+EEE
+```
+
+```sh
+cat <<'EEE' >> ~/.bashrc
+
+# ssenc - https://github.com/stopsopa/encrypt
+export PATH="${HOME}/.ssenc:${PATH}"
+EEE
+```
+
+Open a **new terminal** and check that it works, without any path:
+
+```sh
+ssenc --version     # ssenc rust <tag of the release>
+ssenc --help
+```
+
+The file can live anywhere, `~/.ssenc` is only a suggestion: it only has to be found through `PATH`.
+Later: `ssenc --update`.
+
+### Update
+
+```
+ssenc --update            update to the latest release
+ssenc --update <tag>      install the given release (also an older one), e.g. v0.1.0
+ssenc --update --check    only say whether there is something newer, change nothing
+```
+
+Needs `curl` or `wget`, and `sha256sum` or `shasum`. The new binary is downloaded next to the
+installed one, its sha256 is compared with `SHA256SUMS.txt` of the release, it is executed and has
+to report the expected version, and only then the installed file is replaced (by rename). After
+any failure the installed file is what it was. The checksum comes from the same release as the
+binary: it protects against a broken download, not against someone who controls the release.
+
+| Variable | Default | |
+|---|---|---|
+| `SSENC_RELEASES` | `https://github.com/stopsopa/encrypt/releases` | where `ssenc --update` takes releases from (url or directory with the same layout) |
+| `SSENC_CONFIRM` | `true` | `false`: `ssenc --update` doesn't ask before replacing the binary |
+
+A binary built locally (`ssenc rust dev`) is not a release and refuses to update.
+
 ## Documentation
 
 - [Command line](docs/cli.md) — the `ssenc` command, identical in all implementations
@@ -139,6 +220,18 @@ Node.js version is pinned in `.tool-versions` (asdf); CI uses the same file.
 Each of `typescript/`, `rust/`, `bash/` has its own `envverify.sh`, `install.sh`,
 `compile.sh`, `test.sh`. All of them are also in the [`xx`](https://github.com/stopsopa/xx)
 menu (`xx.ts`): `xx test`, `xx rust compile`, `xx report open`, …
+
+### Releasing
+
+Only the Rust `ssenc` binary is released. The pushed tag is the version: `ssenc --version` of a
+released binary prints `ssenc rust <tag>`.
+
+1. add a section `## <new tag>` to [changelog.md](changelog.md): it becomes the top of the release page
+2. `xx "release notes preview" <new tag>` prints that page without releasing anything
+3. `xx publish` (or `/bin/bash tag.sh [patch|minor|major]`) creates and pushes the tag
+4. the pushed tag starts `.github/workflows/test.yml`: all tests on Linux and macOS, then the three
+   binaries, `SHA256SUMS.txt` and the GitHub release. Nothing is released when tests fail. That
+   release is what `ssenc --update` installs
 
 Tests encrypt every case with every participant (Rust, Bash, Node running the `.ts`,
 Node running the `.js`, and the browser build in headless Chromium), save the results to

@@ -16,12 +16,16 @@ ssenc = { git = "https://github.com/stopsopa/encrypt" }
 # or, from a clone:  ssenc = { path = "../encrypt/rust" }
 ```
 
+The binary alone, without a clone and without Rust: download it from
+[GitHub Releases](https://github.com/stopsopa/encrypt/releases), see
+[Install](../README.md#install). It updates itself with `ssenc --update`.
+
 To build the binary:
 
 ```sh
 rust/install.sh     # cargo fetch --locked
 rust/compile.sh     # cargo build --release --locked  ->  rust/target/release/ssenc
-rust/bin/ssenc --version
+rust/bin/ssenc --version   # ssenc rust dev: a local build (a released binary prints its tag)
 ```
 
 `rust/bin/ssenc` is a small wrapper that runs the release binary. The command line itself
@@ -150,7 +154,8 @@ or `Blob`.
 | `ssh_fingerprint(blob: &[u8])` | `String`: `SHA256:…` as printed by `ssh-keygen -l` |
 | `ssh_key_type(blob: &[u8])` | `Result<String, Error>`, e.g. `"ssh-ed25519"` |
 
-`ssenc::VERSION` is the crate version.
+`ssenc::VERSION` is the crate version. The binary reports something else: the tag of the
+release it was built for, or `dev` (`rust/build.rs`, env var `SSENC_VERSION` at build time).
 
 ## Keys
 

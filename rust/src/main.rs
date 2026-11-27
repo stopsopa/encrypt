@@ -1,9 +1,10 @@
 //! ssenc command line interface. See SPEC.md section 7.
 
-use ssenc::{decrypt, encrypt, inspect, rekey, EncryptOptions, Error, ErrorKind, Key, Mode, RekeyOptions, VERSION};
+use ssenc::{decrypt, encrypt, inspect, rekey, EncryptOptions, Error, ErrorKind, Key, Mode, RekeyOptions};
 use std::io::{IsTerminal, Read, Write};
 
-const IMPL: &str = "rust";
+// --update: the binary replaces itself with a release from GitHub (this binary only)
+mod update;
 
 const USAGE: &str = "usage:
   ssenc encrypt [--mode lines|blob|auto] [--no-preserve-ws] [--pad N] [--chunk N] [--kdf PROFILE]
@@ -12,6 +13,8 @@ const USAGE: &str = "usage:
   ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
   ssenc inspect [-i IN]
   ssenc --version
+  ssenc --update [TAG | --check]    replace this binary with the latest (or the given) release;
+                                    --check only compares. Env: SSENC_RELEASES, SSENC_CONFIRM=false
 
   KEY/KEYS  --password-file F | env SSENC_PASSWORD | --ssh-key PUBFILE_OR_FINGERPRINT
   NEWKEYS   --new-password-file F | env SSENC_NEW_PASSWORD | --new-ssh-key PUBFILE_OR_FINGERPRINT";
@@ -332,7 +335,15 @@ fn write_output(out_path: &Option<String>, data: &[u8]) -> Result<(), Failure> {
 
 fn run(argv: &[String]) -> Result<(), Failure> {
     if argv.first().map(String::as_str) == Some("--version") {
-        return write_output(&None, format!("ssenc {IMPL} {VERSION}\n").as_bytes());
+        // the tag of the release this binary was built for, "dev" for any other build (build.rs).
+        // --update compares exactly this line.
+        return write_output(&None, format!("{}\n", update::version_line(update::VERSION)).as_bytes());
+    }
+    if argv.first().map(String::as_str) == Some("--update") {
+        return update::run(&argv[1..]).map_err(|e| match e {
+            update::Failure::Usage(message) => Error::new(ErrorKind::Usage, message),
+            update::Failure::Env(message) => Error::new(ErrorKind::Env, message),
+        });
     }
     if argv.is_empty() {
         return Err(usage("no command given"));

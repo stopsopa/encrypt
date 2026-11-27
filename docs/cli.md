@@ -12,6 +12,9 @@ and they read each other's files:
 To have it as `ssenc` everywhere, link the one you want into your `PATH`, e.g.
 `ln -s "$PWD/rust/bin/ssenc" ~/bin/ssenc`.
 
+The Rust command is also released as a single binary, usable without a clone of the repository
+and able to update itself (`ssenc --update`): see [Install](../README.md#install).
+
 Other documents: [TypeScript library](typescript.md) · [Rust library](rust.md) · [format specification](../SPEC.md)
 
 ## Commands
@@ -23,6 +26,7 @@ ssenc decrypt KEY [-i IN] [-o OUT]
 ssenc rekey   KEY NEWKEYS [--kdf PROFILE] [--rewrap-only] [-i IN] [-o OUT]
 ssenc inspect [-i IN]
 ssenc --version
+ssenc --update [TAG | --check]          Rust binary only, see "Updating" below
 ```
 
 `-i` and `-o` default to standard input and standard output. The input is read completely
@@ -183,6 +187,44 @@ ssenc inspect -i missing.enc | jq; echo $?      # 1
 
 Without `pipefail`, bash has `${PIPESTATUS[0]}` and zsh has `$pipestatus[1]` for the exit
 code of the first command of the last pipeline.
+
+## Updating (Rust binary only)
+
+```
+ssenc --update            update to the latest release
+ssenc --update <tag>      install the given release (also an older one), e.g. v0.1.0
+ssenc --update --check    only say whether there is something newer, change nothing
+```
+
+The binary replaces itself with a [release](https://github.com/stopsopa/encrypt/releases). It
+needs `curl` or `wget`, and `sha256sum` or `shasum`. Steps:
+
+1. `SHA256SUMS.txt` and the binary of this platform are downloaded next to the installed file,
+   under a temporary name. The platform is not detected: the running binary knows what it was
+   built for (`ssenc-darwin-arm64`, `ssenc-linux-x64`, `ssenc-linux-arm64`).
+2. The sha256 of the download has to match `SHA256SUMS.txt`.
+3. The downloaded binary is executed and has to print `ssenc rust <tag>`.
+4. Only now the installed file is replaced (one atomic rename; started through a symlink, the
+   real file is replaced).
+5. The installed binary is executed once more. If that fails, the previous file is put back.
+
+After any failure the installed file is exactly what it was, and no temporary file is left.
+
+| Variable | Default | |
+|---|---|---|
+| `SSENC_RELEASES` | `https://github.com/stopsopa/encrypt/releases` | URL or local directory (`~/` means home) releases are taken from. `<SSENC_RELEASES>/latest`: for a URL it has to redirect to `.../tag/<tag>`, in a directory it is a file containing the tag. `<SSENC_RELEASES>/download/<tag>/`: the binaries and `SHA256SUMS.txt`. For a mirror and for tests. |
+| `SSENC_CONFIRM` | `true` | `false`: no question before replacing. Without a terminal and without it, `--update` fails instead of waiting. |
+
+Exit codes: 0 updated, already up to date, `--check`, or the answer was "no"; 1 wrong arguments;
+4 everything else (no network, no such release, checksum mismatch, a binary which does not run,
+directory not writable).
+
+`ssenc --version` of a released binary prints the tag of its release (`ssenc rust v0.1.0`). A
+binary built locally prints `ssenc rust dev` and refuses to update: it is not a release, there
+is nothing to compare it with.
+
+The checksum comes from the same release as the binary, so it protects against a broken or
+truncated download, not against someone who controls the release.
 
 ## Differences between the three commands
 

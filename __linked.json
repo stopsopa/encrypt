@@ -3,6 +3,8 @@
 // to restore
 // see more: https://stopsopa.github.io/viewer.html?file=%2Fpages%2Fai%2Fxx%2Flinkrepo.sh
 [
+  "STOPSOPA__LaymanSync",
+  "STOPSOPA__children",
   "STOPSOPA__gits",
   "STOPSOPA__xx"
 ]

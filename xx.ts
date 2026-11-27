@@ -37,6 +37,13 @@ cat <<EEE
   docs:
     README.md  SPEC.md  docs/cli.md  docs/rust.md  docs/typescript.md
 
+  releases (the Rust ssenc binary):
+    https://github.com/stopsopa/encrypt/releases
+    xx publish               new tag (patch / minor / major) pushed: github actions test, build and publish the release
+                             (before it: section "## <new tag>" in changelog.md)
+    xx "release notes preview" v0.1.0
+                             the body of the release page for that tag, without releasing
+
 EEE
 `,
       description: `links and notes about this project`,
@@ -213,6 +220,38 @@ node --disable-warning=ExperimentalWarning tests/vectors/generate.ts
 `,
       description: `REWRITES the known-answer vectors in tests/vectors/ with the TypeScript implementation. Only after a deliberate format change  [tests/vectors/generate.ts]`,
       order: 32,
+    },
+
+    // --- release of the Rust ssenc binary ---
+    [`release notes preview`]: {
+      command: `
+set -e
+
+TAG="\${1:-v0.0.0}"
+
+./rust/compile.sh > /dev/null 2>&1
+
+# the same shape the release job gives to scripts/release_notes.sh: binaries + SHA256SUMS.txt
+TMP="\$(mktemp -d)"
+cp rust/target/release/ssenc "\${TMP}/ssenc-local-build"
+(cd "\${TMP}" && shasum -a 256 ssenc-* > SHA256SUMS.txt)
+
+/bin/bash scripts/release_notes.sh "\${TAG}" stopsopa/encrypt "\${TMP}"
+
+rm -rf "\${TMP:?}"
+`,
+      description: `print the body of the github release page. Optional argument: tag, to see its section of changelog.md, e.g. xx "release notes preview" v0.1.0  [scripts/release_notes.sh]`,
+      confirm: false,
+      order: 33,
+    },
+    [`publish`]: {
+      command: `
+set -e
+/bin/bash tag.sh "\$@"
+`,
+      description: `create and push new tag (choose patch / minor / major, or: xx publish patch), github actions will test, build and publish the release of the Rust ssenc binary  [tag.sh]`,
+      confirm: false,
+      order: 34,
     },
   };
 
