@@ -170,6 +170,13 @@ body {
     --vanilla-tabs-background-color: #fff;
     --vanilla-tabs-lines-color: #dadce0;
   }
+  /* the library colours the labels with the lines colour, which is too light for text */
+  [data-vanilla-tabs] > [data-buttons] > * {
+    color: var(--gcp-css-gray-text);
+  }
+  [data-vanilla-tabs] > [data-buttons] > .active {
+    color: var(--gcp-css-primary);
+  }
   [data-tabs] > div {
     min-width: 0;
   }
